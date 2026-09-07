@@ -99,14 +99,6 @@ async def transcribe_voice_note(audio_id: str) -> str:
 
 async def process_message_background(msg_id: str, sender_phone: str, text: str, sender_name: str):
     """Background task to handle AI processing and WhatsApp reply."""
-    if msg_id in PROCESSED_MESSAGE_IDS:
-        print(f"[Webhook] Duplicate message {msg_id} ignored.")
-        return
-    PROCESSED_MESSAGE_IDS.add(msg_id)
-
-    if len(PROCESSED_MESSAGE_IDS) > 1000:
-        PROCESSED_MESSAGE_IDS.clear()
-
     print(f"[WhatsApp] IN {sender_phone}: {text}")
 
     # Process conversation through Gemini AI logic in threadpool
