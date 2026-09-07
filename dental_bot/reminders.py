@@ -49,15 +49,13 @@ async def send_reminders() -> None:
     Send a WhatsApp reminder to each patient via Meta API and mark reminder_sent=True.
     """
     tomorrow = date.today() + timedelta(days=1)
-    day_start = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0,  0).isoformat()
-    day_end   = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 23, 59).isoformat()
+    tomorrow_str = tomorrow.isoformat()
 
     result = (
         supabase.table("appointments")
         .select("*")
-        .gte("slot_time", day_start)
-        .lte("slot_time", day_end)
-        .eq("booked", True)
+        .eq("appointment_date", tomorrow_str)
+        .in_("status", ["Confirmed", "Tentative Appt", "Show"])
         .eq("reminder_sent", False)
         .execute()
     )
@@ -68,15 +66,21 @@ async def send_reminders() -> None:
 
     for appt in result.data:
         # Meta expects phone without '+'; Supabase stores it with '+'
-        phone = appt["patient_phone"].lstrip("+")
+        phone = str(appt.get("contact_number", "")).lstrip("+")
+        if not phone:
+            continue
 
         try:
-            dt           = datetime.fromisoformat(appt["slot_time"].replace("Z", ""))
-            time_display = dt.strftime("%I:%M %p")   # e.g. "10:00 AM"
-            date_display = dt.strftime("%A, %B %d")  # e.g. "Monday, April 20"
+            time_display = appt.get("appointment_time", "12:00:00")[:5]
+            # convert to 12 hr am/pm
+            h, m = map(int, time_display.split(":"))
+            ampm = "PM" if h >= 12 else "AM"
+            h12 = h % 12 or 12
+            time_display = f"{h12}:{m:02d} {ampm}"
+            date_display = tomorrow.strftime("%A, %B %d")
         except Exception:
-            time_display = appt["slot_time"]
-            date_display = "tomorrow"
+            time_display = appt.get("appointment_time")
+            date_display = tomorrow.strftime("%A, %B %d")
 
         message = (
             f"Hi {appt['patient_name']}! 👋 Reminder from {CLINIC_NAME}: "
@@ -91,7 +95,7 @@ async def send_reminders() -> None:
             "id", appt["id"]
         ).execute()
 
-        print(f"[Reminder] ✅ Sent to {appt['patient_name']} ({phone}) — {appt['slot_time']}")
+        print(f"[Reminder] ✅ Sent to {appt['patient_name']} ({phone}) — {date_display} {time_display}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

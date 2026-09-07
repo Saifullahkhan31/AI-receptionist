@@ -1,0 +1,10 @@
+{
+  "description": "Streamline dental clinic management with a user-friendly dashboard for tracking appointments, patient information, and clinic operations efficiently.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

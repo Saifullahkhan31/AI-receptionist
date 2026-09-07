@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   treatment_planned TEXT,
   booked_by         TEXT DEFAULT 'manual',
   notes             TEXT,
+  reminder_sent     BOOLEAN DEFAULT FALSE,
   created_at        TIMESTAMPTZ DEFAULT now()
 );
 
