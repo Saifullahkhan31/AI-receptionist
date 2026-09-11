@@ -9,50 +9,56 @@ const TodayView = (() => {
   'use strict';
 
   // ── State ───────────────────────────────────────
-  let appointments  = [];
-  let doctorData    = null;
-  let activeCard    = null; // currently expanded card id
-  let statusTarget  = null; // appt id awaiting status pick
+  let appointments = [];
+  let doctorData = null;
+  let activeCard = null; // currently expanded card id
+  let statusTarget = null; // appt id awaiting status pick
+  let activeFilter = 'all';
 
   // ── DOM Refs ────────────────────────────────────
-  const listEl       = document.getElementById('appt-list');
-  const emptyEl      = document.getElementById('today-empty');
-  const statTotal    = document.getElementById('stat-num-total');
-  const statShow     = document.getElementById('stat-num-show');
-  const statPending  = document.getElementById('stat-num-pending');
-  const statNoShow   = document.getElementById('stat-num-noshow');
+  const listEl = document.getElementById('appt-list');
+  const emptyEl = document.getElementById('today-empty');
+  const statTotal = document.getElementById('stat-num-total');
+  const statShow = document.getElementById('stat-num-show');
+  const statPending = document.getElementById('stat-num-pending');
+  const statNoShow = document.getElementById('stat-num-noshow');
+  const appointmentCount = document.getElementById('appointment-count');
+  const filterButtons = document.querySelectorAll('.appointment-filters button');
 
   // Add Appointment modal
-  const modalAdd     = document.getElementById('modal-add-appt');
-  const formAdd      = document.getElementById('form-add-appt');
-  const btnFab       = document.getElementById('fab-add');
-  const inputName    = document.getElementById('appt-patient-name');
-  const inputPhone   = document.getElementById('appt-phone');
-  const inputDate    = document.getElementById('appt-date');
-  const inputTime    = document.getElementById('appt-time');
-  const inputTreat   = document.getElementById('appt-treatment');
+  const modalAdd = document.getElementById('modal-add-appt');
+  const formAdd = document.getElementById('form-add-appt');
+  const btnFab = document.getElementById('fab-add');
+  const btnCloseAdd = document.getElementById('close-add-appt');
+  const btnCancelAdd = document.getElementById('cancel-add-appt');
+  const addApptDateLabel = document.getElementById('add-appt-date-label');
+  const inputName = document.getElementById('appt-patient-name');
+  const inputPhone = document.getElementById('appt-phone');
+  const inputDate = document.getElementById('appt-date');
+  const inputTime = document.getElementById('appt-time');
+  const inputTreat = document.getElementById('appt-treatment');
   const servicesList = document.getElementById('services-list');
-  const btnSave      = document.getElementById('btn-save-appt');
-  const docBtns      = document.querySelectorAll('.doctor-btn');
+  const btnSave = document.getElementById('btn-save-appt');
+  const docBtns = document.querySelectorAll('.doctor-btn');
 
   // Status picker modal
-  const modalStatus  = document.getElementById('modal-status');
-  const statusName   = document.getElementById('status-sheet-name');
-  const statusOpts   = document.getElementById('status-options');
+  const modalStatus = document.getElementById('modal-status');
+  const statusName = document.getElementById('status-sheet-name');
+  const statusOpts = document.getElementById('status-options');
 
   // ── Format helpers ──────────────────────────────
   function formatTime(timeStr) {
     if (!timeStr) return { h: '--', ampm: '' };
     const [h, m] = timeStr.split(':').map(Number);
     const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12  = h % 12 || 12;
+    const h12 = h % 12 || 12;
     return { h: h12 + ':' + String(m).padStart(2, '0'), ampm };
   }
 
   function badgeClass(status) {
     if (!status) return 'badge-tentative';
     const s = status.toLowerCase();
-    if (s === 'show')    return 'badge-show';
+    if (s === 'show') return 'badge-show';
     if (s === 'no show') return 'badge-noshow';
     if (s.includes('cancel') || s.includes('postpone')) return 'badge-cancel';
     return 'badge-tentative';
@@ -61,7 +67,7 @@ const TodayView = (() => {
   function badgeLabel(status) {
     if (!status) return 'Tentative';
     const s = status.toLowerCase();
-    if (s === 'show')    return 'Show';
+    if (s === 'show') return 'Show';
     if (s === 'no show') return 'No Show';
     if (s.includes('cancel') || s.includes('postpone')) return 'Cancelled';
     return 'Tentative';
@@ -69,13 +75,16 @@ const TodayView = (() => {
 
   // ── Render appointment card ─────────────────────
   function renderCard(appt) {
-    const t     = formatTime(appt.appointment_time);
+    const t = formatTime(appt.appointment_time);
     const badge = badgeClass(appt.status);
     const label = badgeLabel(appt.status);
     const isOpen = activeCard === appt.id;
+    const initials = (appt.patient_name || 'P').split(/\s+/).map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    const avatarColors = ['blue', 'purple', 'coral', 'green', 'orange', 'cyan'];
+    const avatarColor = avatarColors[(appt.patient_name || '').length % avatarColors.length];
 
     const card = document.createElement('div');
-    card.className  = 'appt-card';
+    card.className = 'appt-card';
     card.dataset.id = appt.id;
 
     card.innerHTML = `
@@ -84,14 +93,20 @@ const TodayView = (() => {
           <div class="appt-time">${t.h}</div>
           <div class="appt-time-ampm">${t.ampm}</div>
         </div>
-        <div class="appt-divider"></div>
-        <div class="appt-info">
-          <div class="appt-name">${appt.patient_name}</div>
-          <div class="appt-treatment">${appt.treatment_planned || 'No treatment specified'}</div>
+        <div class="patient-group">
+          <div class="patient-avatar patient-avatar--${avatarColor}">${initials}</div>
+          <div class="appt-info">
+            <div class="appt-name">${appt.patient_name}</div>
+            <div class="appt-treatment">${appt.treatment_planned || 'No treatment specified'}</div>
+          </div>
         </div>
         <button class="status-badge ${badge}" data-appt-id="${appt.id}" aria-label="Change status">
           ${label}
         </button>
+        <div class="appt-actions">
+          <button class="appt-view" aria-label="View appointment">◉ <span>View</span></button>
+          <button class="appt-more" aria-label="More appointment actions">⋮</button>
+        </div>
       </div>
       ${isOpen ? renderDetail(appt) : ''}
     `;
@@ -107,6 +122,16 @@ const TodayView = (() => {
     card.querySelector('.status-badge').addEventListener('click', e => {
       e.stopPropagation();
       openStatusPicker(appt);
+    });
+
+    card.querySelector('.appt-view').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleCard(appt.id);
+    });
+
+    card.querySelector('.appt-more').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleCard(appt.id);
     });
 
     return card;
@@ -137,16 +162,17 @@ const TodayView = (() => {
 
   // ── Update stats bar ────────────────────────────
   function updateStats() {
-    const total   = appointments.length;
-    const show    = appointments.filter(a => a.status === 'Show').length;
-    const noshow  = appointments.filter(a => a.status === 'No Show').length;
+    const total = appointments.length;
+    const show = appointments.filter(a => a.status === 'Show').length;
+    const noshow = appointments.filter(a => a.status === 'No Show').length;
     const pending = appointments.filter(a =>
       !a.status || a.status === 'Tentative Appt').length;
 
-    statTotal.textContent   = total;
-    statShow.textContent    = show;
-    statNoShow.textContent  = noshow;
+    statTotal.textContent = total;
+    statShow.textContent = show;
+    statNoShow.textContent = noshow;
     statPending.textContent = pending;
+    if (appointmentCount) appointmentCount.textContent = total;
   }
 
   // ── Render full list ────────────────────────────
@@ -160,11 +186,30 @@ const TodayView = (() => {
     }
 
     emptyEl.hidden = true;
-    appointments.forEach(appt => {
+    const visibleAppointments = appointments.filter(appt => {
+      if (activeFilter === 'show') return appt.status === 'Show';
+      if (activeFilter === 'pending') return !appt.status || appt.status === 'Tentative Appt';
+      if (activeFilter === 'no-show') return appt.status === 'No Show';
+      return true;
+    });
+    if (!visibleAppointments.length) {
+      listEl.innerHTML = '<div class="filtered-empty">No appointments match this filter.</div>';
+      updateStats();
+      return;
+    }
+    visibleAppointments.forEach(appt => {
       listEl.appendChild(renderCard(appt));
     });
     updateStats();
   }
+
+  filterButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      activeFilter = button.textContent.trim().toLowerCase().replace(' ', '-');
+      filterButtons.forEach(btn => btn.classList.toggle('active', btn === button));
+      render();
+    });
+  });
 
   // ── Show skeleton loaders ───────────────────────
   function showSkeletons() {
@@ -206,7 +251,7 @@ const TodayView = (() => {
     if (!btn || !statusTarget) return;
 
     const newStatus = btn.dataset.status;
-    const id        = statusTarget.id;
+    const id = statusTarget.id;
 
     closeStatusPicker();
 
@@ -240,6 +285,9 @@ const TodayView = (() => {
     inputPhone.value = '';
     inputTime.value = '';
     inputTreat.value = '';
+    if (addApptDateLabel) {
+      addApptDateLabel.textContent = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
     modalAdd.hidden = false;
 
     // Pre-select the logged-in doctor
@@ -258,6 +306,8 @@ const TodayView = (() => {
   }
 
   btnFab.addEventListener('click', openAddModal);
+  if (btnCloseAdd) btnCloseAdd.addEventListener('click', closeAddModal);
+  if (btnCancelAdd) btnCancelAdd.addEventListener('click', closeAddModal);
   modalAdd.addEventListener('click', e => {
     if (e.target === modalAdd) closeAddModal();
   });
@@ -277,21 +327,21 @@ const TodayView = (() => {
     const name = inputName.value.trim();
     if (!name) { inputName.focus(); return; }
 
-    btnSave.disabled    = true;
+    btnSave.disabled = true;
     btnSave.textContent = 'Saving...';
 
     try {
       const activeDoc = document.querySelector('.doctor-btn.active');
-      const docName   = activeDoc ? activeDoc.textContent.trim() : null;
+      const docName = activeDoc ? activeDoc.textContent.trim() : null;
 
       const data = {
-        patient_name:      name,
-        contact_number:    inputPhone.value.trim() || null,
-        appointment_date:  inputDate.value,
-        appointment_time:  inputTime.value || null,
+        patient_name: name,
+        contact_number: inputPhone.value.trim() || null,
+        appointment_date: inputDate.value,
+        appointment_time: inputTime.value || null,
         treatment_planned: inputTreat.value.trim() || null,
-        status:            'Tentative Appt',
-        booked_by:         'manual',
+        status: 'Tentative Appt',
+        booked_by: 'manual',
       };
 
       // Find doctor id by name
@@ -307,8 +357,8 @@ const TodayView = (() => {
       console.error('[TODAY] Save appointment failed:', err);
       btnSave.textContent = 'Error — Try again';
     } finally {
-      btnSave.disabled    = false;
-      btnSave.textContent = 'Save Appointment';
+      btnSave.disabled = false;
+    btnSave.textContent = 'Add Appointment';
     }
   });
 
@@ -327,15 +377,20 @@ const TodayView = (() => {
 
   // ── Load services for autocomplete ─────────────
   async function loadServices() {
+    const fallbackServices = ['Dental Cleaning & Scaling', 'Root Canal Treatment', 'Teeth Whitening', 'Dental Crown Fitting', 'Orthodontic Consultation', 'Tooth Extraction', 'Composite Filling', 'Implant Consultation', 'Checkup'];
     try {
       const services = await API.getServices();
-      services.forEach(s => {
+      [...services.map(s => s.service_name), ...fallbackServices].forEach(serviceName => {
         const opt = document.createElement('option');
-        opt.value = s.service_name;
+        opt.value = serviceName;
         servicesList.appendChild(opt);
       });
     } catch (e) {
-      console.warn('[TODAY] Could not load services for autocomplete');
+      fallbackServices.forEach(serviceName => {
+        const opt = document.createElement('option');
+        opt.value = serviceName;
+        servicesList.appendChild(opt);
+      });
     }
   }
 

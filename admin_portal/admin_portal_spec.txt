@@ -1,0 +1,226 @@
+================================================================================
+CLINIC ADMIN PORTAL — PRODUCT & TECHNICAL SPECIFICATION
+Clinic: Centre of Modern Dentistry
+Doctors: Dr. Mustafa & Dr. Qasim
+Target: Web Admin Portal (Desktop, Tablet & Mobile Friendly)
+================================================================================
+
+1. OVERVIEW & PURPOSE
+--------------------------------------------------------------------------------
+The Centre of Modern Dentistry AI receptionist operates across automated Voice 
+Calling (Sana) and WhatsApp to book appointments, answer inquiries, and transfer 
+emergencies.
+
+This document defines the specification for a lightweight, secure, and intuitive
+Web Admin Portal designed strictly for Dr. Mustafa and Dr. Qasim. 
+
+Key Principles:
+- Doctor-Centric: Completely separates schedules between Dr. Mustafa & Dr. Qasim.
+- No Technical Noise: Hides all developer/agent metrics (latency, token usage,
+  socket events, model IDs). Displays only actionable clinic and patient data.
+- Rapid Mobile Access: 6-digit PIN login optimized for fast unlocking on phones
+  between patients.
+- Real-Time Oversight: Instant view of today's schedule, patient records, 
+  call summaries, and manual booking overrides.
+
+
+2. ACCESS & AUTHENTICATION (6-DIGIT PIN)
+--------------------------------------------------------------------------------
+Instead of cumbersome email/passwords, the portal uses a rapid 6-digit PIN.
+
+- Dedicated Doctor PINs:
+  * Dr. Mustafa PIN: Unlocks portal with Dr. Mustafa's view active by default.
+  * Dr. Qasim PIN: Unlocks portal with Dr. Qasim's view active by default.
+  * Master Clinic PIN: Displays unified dual-doctor clinic overview.
+- Mobile Numeric Keypad:
+  * Single screen with 6 digit circles and a clean, responsive touch number pad.
+  * Auto-submits on 6th digit entry.
+  * Session persists for 12 hours (session cookie / JWT) with auto-lock option.
+  * Rate-limiting to prevent brute force (5 failed attempts -> 15 min cooldown).
+
+
+3. MODULE-BY-MODULE SPECIFICATIONS
+--------------------------------------------------------------------------------
+
+MODULE 1: TODAY'S CLINIC DASHBOARD (5:00 PM – 10:00 PM SHIFT VIEW)
+--------------------------------------------------------------------------------
+The primary landing view when doctors arrive at the clinic.
+
+- Top Header:
+  * Doctor Selector Tabs: [ Dr. Mustafa ] [ Dr. Qasim ] [ Unified Clinic View ]
+  * Date indicator with "Today" badge and quick arrows (< Yesterday | Tomorrow >).
+  * Quick Status Cards:
+    - Today's Appointments (Total for selected doctor).
+    - In-Clinic Status: Waiting (Arrived) | In Chair | Completed.
+    - Emergency / Urgent Call Alerts: Highlighted badge if any emergency call 
+      occurred today.
+
+- Today's Slot Timeline (5:00 PM – 10:00 PM):
+  * Vertical hourly breakdown with 30-min / 60-min slot blocks.
+  * Patient Appointment Cards display:
+    - Time Slot (e.g., 6:00 PM - 7:00 PM)
+    - Patient Name & Phone Number
+    - Procedure / Reason for Visit (e.g., "Crown Fitting", "Toothache", "Checkup")
+    - Booking Source badge ("Voice Call", "WhatsApp", "Manual Walk-in")
+    - Quick Action Status Pill:
+      [ Booked ] -> [ Arrived / Waiting ] -> [ In Chair ] -> [ Completed ]
+      With quick option for [ No-Show / Cancel ].
+
+
+MODULE 2: DOCTOR-SEPARATED APPOINTMENT CALENDAR
+--------------------------------------------------------------------------------
+Full scheduling hub with strict distinction between doctors.
+
+- Dedicated Views:
+  * Dr. Mustafa Schedule: Only shows slots and bookings for Dr. Mustafa.
+  * Dr. Qasim Schedule: Only shows slots and bookings for Dr. Qasim.
+  * Side-by-Side Dual View: Allows receptionist or doctors to compare schedules.
+
+- View Formats:
+  * Day View (detailed timeline)
+  * Week View (Monday to Saturday column grid, 5:00 PM to 10:00 PM)
+  * List / Agenda View (searchable table with date filters)
+
+- Appointment Actions:
+  * [ + New Booking ] Modal:
+    - Patient Phone & Name
+    - Assign Doctor (Dr. Mustafa / Dr. Qasim)
+    - Date & Time Slot
+    - Procedure (dropdown with common procedures + custom text)
+    - Doctor's internal note
+  * Reschedule Action: Simple date/time selector; automatically updates Google 
+    Calendar and Supabase.
+  * Cancel / Release Slot: Releases the slot back to the AI booking pool.
+  * Block Out Time / Leave:
+    - Allows a doctor to mark "Unavailable" for specific hours or full dates 
+      (e.g., "Dr. Mustafa away this Friday").
+    - The AI voice and WhatsApp bots immediately skip these blocked slots.
+
+
+MODULE 3: PATIENT DIRECTORY & CLINICAL RECORDS (CRM)
+--------------------------------------------------------------------------------
+Fast lookup for patient history and notes.
+
+- Search & Filter:
+  * Instant search by Patient Name or Phone Number (handles 03xx and +923xx).
+  * Filter by attending doctor (Dr. Mustafa's patients vs Dr. Qasim's patients).
+
+- Patient Profile Drawer / Screen:
+  * Patient Details: Name, Phone, Registered Date, Total Visits.
+  * Medical Alerts & Cautions (bold colored banner):
+    - Allergies (e.g., Penicillin, Latex)
+    - Medical Conditions (e.g., Diabetic, Hypertension)
+  * Visit History Timeline:
+    - Date of visit
+    - Attending Doctor
+    - Procedure performed
+    - Clinical notes & doctor remarks
+  * Quick Actions:
+    - [ Message on WhatsApp ]: Opens wa.me chat directly.
+    - [ Call Patient ]: Launches phone dialer.
+    - [ Book Next Visit ]: Opens booking modal pre-filled with patient details.
+
+
+MODULE 4: AI VOICE RECEPTIONIST (SANA) CALL LOGS
+--------------------------------------------------------------------------------
+Clean, clinical summary of all calls handled by the AI voice agent.
+(Strictly excludes internal latency metrics, token usage, and developer logs).
+
+- Call History Table:
+  * Date & Time of Call
+  * Caller Phone Number (cross-linked to Patient profile if recognized)
+  * Call Duration (e.g., 1m 24s)
+  * Call Outcome Badge:
+    - [ Booked Appointment ]: Successfully scheduled.
+    - [ Transferred to Dr. Mustafa ]: Forwarded call.
+    - [ Transferred to Dr. Qasim ]: Forwarded call.
+    - [ Emergency Forwarded ]: Urgent pain/bleeding routed to doctor.
+    - [ Inquiry Answered ]: Timings/fees query.
+    - [ Dropped / Incomplete ]: Caller hung up early.
+  * Summary / Key Takeaway: 1-2 sentence AI-generated summary of what the 
+    patient wanted (e.g., "Patient complained of lower molar pain; booked for 
+    tomorrow 7:00 PM with Dr. Mustafa").
+
+- Call Detail Modal:
+  * Full Urdu/English readable conversation transcript.
+  * Call recording audio player (if Twilio recording enabled).
+
+
+MODULE 5: WHATSAPP CHAT LOGS & MANUAL MESSAGING
+--------------------------------------------------------------------------------
+Overview of patient conversations conducted via WhatsApp.
+
+- Inbox List:
+  * Sorted by latest message timestamp.
+  * Displays Patient Name, Phone, and last message snippet.
+  * Status indicator: "Handled by AI" vs "Needs Doctor Attention".
+- Message Thread Viewer:
+  * Clean chat view of patient questions and bot answers.
+- Manual Reply Option:
+  * Allows doctor or assistant to send a direct official WhatsApp message from 
+    the clinic number without opening personal phones.
+
+
+MODULE 6: CLINIC CONTROLS & SCHEDULE OVERRIDES
+--------------------------------------------------------------------------------
+Simple toggles for day-to-day clinic administration.
+
+- Holiday & Closure Switch:
+  * "Clinic Closed Today" toggle: Bot automatically informs callers that the 
+    clinic is closed today and offers bookings for the next available day.
+- Custom Shift Hours:
+  * Adjust default shift timings if opening early or late on specific days.
+- Pricing & FAQ Text Override:
+  * Easily adjust consultation fees or address landmarks without touching code.
+
+
+4. DATABASE SCHEMA ADDITIONS (SUPABASE)
+--------------------------------------------------------------------------------
+To support doctor separation and call summaries, minimal additions to Supabase:
+
+1. Update `appointments` table:
+   - `doctor`: text ('Dr. Mustafa', 'Dr. Qasim')
+   - `status`: text ('booked', 'arrived', 'in_chair', 'completed', 'cancelled', 'no_show')
+   - `notes`: text
+   - `booked_via`: text ('voice', 'whatsapp', 'walk_in')
+
+2. New `call_logs` table (Clean clinic format):
+   - `id`: uuid primary key
+   - `call_sid`: text unique
+   - `caller_phone`: text
+   - `caller_name`: text (optional)
+   - `duration_seconds`: integer
+   - `outcome`: text ('booked', 'transferred', 'inquiry', 'missed')
+   - `doctor_requested`: text ('dr_mustafa', 'dr_qasim', null)
+   - `summary`: text (clean 1-line summary)
+   - `transcript`: text
+   - `created_at`: timestamptz
+
+3. New `doctor_blocks` table:
+   - `id`: uuid primary key
+   - `doctor`: text ('Dr. Mustafa', 'Dr. Qasim', 'Both')
+   - `start_time`: timestamptz
+   - `end_time`: timestamptz
+   - `reason`: text
+
+
+5. ARCHITECTURE & HOSTING
+--------------------------------------------------------------------------------
+- Embedding: Hosted directly from the existing FastAPI application at `/admin`.
+- Zero Extra Hosting Cost: Leverages the existing Render deployment.
+- Mobile Responsive: Clean mobile web app (Progressive Web App / Add to Home Screen
+  ready so doctors can open it like an app with an icon on their iPhones/Androids).
+- Security:
+  * 6-digit PIN hashed via bcrypt/argon2.
+  * Encrypted HTTP-only session cookie.
+  * Protected REST API endpoints under `/api/admin/*`.
+
+
+6. IMPLEMENTATION ROADMAP
+--------------------------------------------------------------------------------
+Phase 1: 6-Digit PIN Screen & Today's Shift Dashboard (Separated by Doctor)
+Phase 2: Calendar & Manual Booking Management (Synced to GCal & Supabase)
+Phase 3: Patient Directory & Clinical Notes (CRM)
+Phase 4: AI Call & WhatsApp History (Clean Summaries & Transcripts)
+Phase 5: Clinic Holiday & Slot Block Controls
+================================================================================

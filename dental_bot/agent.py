@@ -24,15 +24,15 @@ CONVERSATION_HISTORY = {}
 
 def get_patient(phone: str) -> dict | None:
     """Look up a patient by phone number. Returns dict or None."""
-    result = supabase.table("patients").select("*").eq("phone", phone).execute()
+    result = supabase.table("patients").select("*").eq("contact_number", phone).execute()
     return result.data[0] if result.data else None
 
 
 def register_patient(phone: str, name: str) -> None:
     """Auto-register a new patient if they are not in the DB."""
-    existing = supabase.table("patients").select("id").eq("phone", phone).execute()
+    existing = supabase.table("patients").select("id").eq("contact_number", phone).execute()
     if not existing.data:
-        supabase.table("patients").insert({"name": name, "phone": phone}).execute()
+        supabase.table("patients").insert({"name": name, "contact_number": phone}).execute()
 
 
 import json
@@ -423,10 +423,10 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
         from datetime import date
         today_str = date.today().isoformat()
         try:
-            appts = supabase.table("appointments").select("*").gte("slot_time", today_str).eq("booked", True).order("slot_time").limit(5).execute()
+            appts = supabase.table("appointments").select("*").gte("appointment_date", today_str).neq("status", "Appt Cancel/Postpone").order("appointment_date").order("appointment_time").limit(5).execute()
             if appts.data:
                 appt_lines = "\n".join([
-                    f"• *{a.get('patient_name', 'Patient')}* — {a.get('procedure', 'Dental Visit')} at {a.get('slot_time', '')[:16].replace('T', ' ')}"
+                    f"• *{a.get('patient_name', 'Patient')}* — {a.get('treatment_planned', 'Dental Visit')} at {a.get('appointment_date', '')} {a.get('appointment_time', '')}"
                     for a in appts.data
                 ])
             else:
@@ -494,20 +494,21 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
                     reply = f"Perfect! Your appointment for {date_str} at {time_str} is confirmed. We look forward to seeing you!"
 
                 # 1. Save the appointment to Supabase
-                from datetime import datetime
-                from zoneinfo import ZoneInfo
-                slot_time = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M").replace(tzinfo=ZoneInfo("Asia/Karachi"))
-                
-                # Assigned doctor (defaults to 'default' test number; extensible per procedure or doctor selection)
                 assigned_doctor_id = "default"
 
-                supabase_res = supabase.table("appointments").insert({
-                    "patient_phone": phone,
+                payload = {
+                    "contact_number": phone,
                     "patient_name": patient["name"],
-                    "procedure": procedure_name,
-                    "slot_time": slot_time.isoformat(),
-                    "booked": True
-                }).execute()
+                    "treatment_planned": procedure_name,
+                    "appointment_date": date_str,
+                    "appointment_time": time_str,
+                    "status": "Confirmed",
+                    "booked_by": "ai_bot"
+                }
+                if patient.get("id"):
+                    payload["patient_id"] = patient["id"]
+
+                supabase_res = supabase.table("appointments").insert(payload).execute()
 
                 # 2. Right after the Supabase write succeeds, send a dedicated WhatsApp notification to the Doctor
                 if supabase_res.data:
