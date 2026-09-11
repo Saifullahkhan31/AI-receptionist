@@ -41,8 +41,8 @@ from datetime import datetime
 # ─────────────────────────────────────────────────────────────────────────────
 # Doctor Notification Lookup & Registry
 # ─────────────────────────────────────────────────────────────────────────────
-# Test stand-in doctor number: 0331-1286436 -> "923311286436"
-DOCTOR_WHATSAPP_NUMBER = os.getenv("DOCTOR_WHATSAPP_NUMBER", "923311286436")
+# Default doctor number: Dr. Mustafa (923312887365)
+DOCTOR_WHATSAPP_NUMBER = os.getenv("DOCTOR_WHATSAPP_NUMBER", "923312887365")
 
 # Lookup mapping doctor_id -> WhatsApp configuration
 DOCTOR_REGISTRY = {
