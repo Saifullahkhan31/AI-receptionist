@@ -33,8 +33,7 @@ TOKEN_PATH = os.path.join(_BASE_DIR, "token.json")
 CREDS_PATH = os.path.join(_BASE_DIR, "credentials.json")
 
 # Clinic hours (inclusive start, exclusive end)
-# Clinic hours (inclusive start, exclusive end)
-CLINIC_START_HOUR = 17  # 5 pm (17:00)
+CLINIC_START_HOUR = 18  # 6 pm (18:00)
 CLINIC_END_HOUR   = 22  # 10 pm (22:00)
 SLOT_DURATION_MINUTES = 45  # 45-minute slots back-to-back with no gap
 
@@ -106,14 +105,13 @@ def _get_service():
 def get_open_slots(days_ahead: int = 7, max_slots: int = 12) -> list[str]:
     """
     Return up to `max_slots` free 45-minute slots over the next `days_ahead` days
-    during clinic hours (5:00 PM – 10:00 PM), Asia/Karachi time.
+    during clinic hours (6:00 PM – 10:00 PM), Asia/Karachi time.
     Slots run back-to-back with no gap:
-      5:00pm – 5:45pm (17:00)
-      5:45pm – 6:30pm (17:45)
-      6:30pm – 7:15pm (18:30)
-      7:15pm – 8:00pm (19:15)
-      8:00pm – 8:45pm (20:00)
-      8:45pm – 9:30pm (20:45)
+      6:00pm – 6:45pm (18:00)
+      6:45pm – 7:30pm (18:45)
+      7:30pm – 8:15pm (19:30)
+      8:15pm – 9:00pm (20:15)
+      9:00pm – 9:45pm (21:00)
     """
     try:
         service = _get_service()

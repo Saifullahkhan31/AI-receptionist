@@ -214,21 +214,66 @@ def notify_doctor(patient_name: str, patient_phone: str, date_str: str, time_str
 # Gemini AI logic
 # ─────────────────────────────────────────────────────────────────────────────
 
+def get_patient_upcoming_appointments(phone: str) -> str:
+    """Fetch active/upcoming appointments for this patient from Supabase."""
+    try:
+        from datetime import date
+        today_str = date.today().isoformat()
+
+        # Query appointments by contact_number
+        res = (
+            supabase.table("appointments")
+            .select("*")
+            .eq("contact_number", phone)
+            .gte("appointment_date", today_str)
+            .neq("status", "Appt Cancel/Postpone")
+            .order("appointment_date")
+            .order("appointment_time")
+            .execute()
+        )
+        if res.data:
+            lines = []
+            for appt in res.data:
+                a_date = appt.get("appointment_date") or (appt.get("slot_time", "")[:10] if appt.get("slot_time") else "")
+                a_time = appt.get("appointment_time") or (appt.get("slot_time", "")[11:16] if appt.get("slot_time") else "")
+                a_proc = appt.get("treatment_planned") or appt.get("procedure", "Dental Visit")
+                a_status = appt.get("status", "Confirmed")
+
+                formatted_t = format_time_12h(a_time) if a_time else "TBD"
+                day_name = get_day_name(a_date) if a_date else ""
+
+                day_part = f" ({day_name})" if day_name else ""
+                lines.append(f"  • Date: {a_date}{day_part} at {formatted_t} | Procedure: {a_proc} | Status: {a_status}")
+            return "\n".join(lines)
+    except Exception as e:
+        print(f"[Supabase] Error fetching patient upcoming appointments: {e}")
+    return "  No active upcoming appointments found on record."
+
+
 def build_system_prompt(patient: dict | None, open_slots: list[str], phone: str) -> str:
     slots_text = "\n".join(open_slots) if open_slots else "No slots available this week."
+    upcoming_appts = get_patient_upcoming_appointments(phone)
 
     patient_ctx = ""
     if patient:
         patient_ctx = f"""
 === RETURNING PATIENT RECORD ===
-- Name       : {patient['name']}
-- Phone      : {phone}
-- Last Visit : {patient.get('last_proc') or 'not on record'}
-- Notes      : {patient.get('notes') or 'none'}
+- Name                  : {patient['name']}
+- Phone                 : {phone}
+- Last Visit            : {patient.get('last_proc') or 'not on record'}
+- Notes                 : {patient.get('notes') or 'none'}
+- UPCOMING APPOINTMENTS :
+{upcoming_appts}
 ================================
 """
     else:
-        patient_ctx = "\n=== NEW PATIENT (no record found — greet warmly and ask for name) ===\n"
+        patient_ctx = f"""
+=== NEW PATIENT / UNREGISTERED ===
+- Phone                 : {phone}
+- UPCOMING APPOINTMENTS :
+{upcoming_appts}
+==================================
+"""
 
     return f"""You are Sana, a warm and professional dental receptionist at {CLINIC_NAME}.
 You assist patients via WhatsApp — booking, rescheduling, or canceling appointments,
@@ -241,7 +286,7 @@ Clinic Name    : {CLINIC_NAME}
 Doctors        : We have two doctors at the clinic — Dr. Mustafa and Dr. Qasim — both senior, qualified dental doctors.
                  If a patient asks about the doctors (e.g. "who are the doctors", "which doctor should I see", "tell me about your doctors"),
                  always respond with: "We have two doctors at the clinic — Dr. Mustafa and Dr. Qasim — both senior, qualified dental doctors."
-Working Hours  : Monday to Saturday, 5:00 PM – 10:00 PM (45-minute slots: 5:00–5:45 PM, 5:45–6:30 PM, 6:30–7:15 PM, 7:15–8:00 PM, 8:00–8:45 PM, 8:45–9:30 PM)
+Working Hours  : Monday to Saturday, 6:00 PM – 10:00 PM (45-minute slots: 6:00–6:45 PM, 6:45–7:30 PM, 7:30–8:15 PM, 8:15–9:00 PM, 9:00–9:45 PM)
 Off Days       : Sunday (closed)
 Location       : Grey Skyline, Block 13, Jauhar Chowrangi Road, Gulistan-e-Johar, Karachi (786 Medical Store se jo andar road ja rahi hai, us road par seedha andar Hussaini Blood Bank hai, wahan hi clinic hai). Google Maps: https://maps.app.goo.gl/7NfZMQEBh1HTo5bw8
 Language       : Respond in the same language the patient uses.
@@ -331,17 +376,23 @@ BEHAVIOR RULES (STRICTLY FOLLOW THESE)
 
 9. LANGUAGE      : Match the patient's language at all times. If they switch, you switch.
 
+10. APPOINTMENT INQUIRIES:
+   - If a patient asks about their booking or appointment (e.g. "When is my appointment?", "Do I have a booking today?", "Check my appointment"),
+     check UPCOMING APPOINTMENTS under PATIENT CONTEXT above.
+   - If an appointment is listed, reply warmly confirming their exact Date, Day, Time, and Procedure.
+   - If no active appointment is listed, politely inform them that no upcoming appointment is found on record under their number and offer to help them book one.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SYSTEM TAGS (HIDDEN — NEVER SHOW TO PATIENT)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BOOKING TAG    : When a patient confirms a slot, append on a new line at the very end:
                  BOOK:YYYY-MM-DD:HH:MM:Procedure Name
-                 Example: BOOK:2026-09-04:17:45:Oral Cleaning (Scaling)
-                 Note: Slots start at 45-min intervals: 17:00, 17:45, 18:30, 19:15, 20:00, 20:45.
+                 Example: BOOK:2026-09-04:18:45:Oral Cleaning (Scaling)
+                 Note: Slots start at 45-min intervals: 18:00, 18:45, 19:30, 20:15, 21:00.
 
 CANCELLATION TAG: When a patient cancels an appointment, append on a new line:
                  CANCEL:YYYY-MM-DD:HH:MM
-                 Example: CANCEL:2026-09-04:17:45
+                 Example: CANCEL:2026-09-04:18:45
 
 IMPORTANT: These tags are parsed by the system. They must appear on their own line
 at the very end of your message. Never explain or mention them to the patient."""
