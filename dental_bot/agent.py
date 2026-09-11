@@ -65,23 +65,83 @@ NOTIFIED_BOOKINGS = set()
 RECENTLY_BOOKED_SLOTS = set()
 
 
+def format_time_12h(time_input: str | float | int) -> str:
+    """
+    Converts 24-hour time formats (e.g. '18:30', '18.30', '19', 18.3, 19)
+    into 12-hour AM/PM format (e.g. '6:30 p.m.', '7:00 p.m.').
+    """
+    if time_input is None:
+        return ""
+
+    val = str(time_input).strip()
+    if not val:
+        return ""
+
+    # If already contains AM/PM/a.m./p.m.
+    if re.search(r"[a-zA-Z]", val):
+        return val
+
+    # Match hour and minute components: '18:30', '18.30', '18.3', '19', '09:15'
+    match = re.match(r"^(\d{1,2})(?:[:.](\d{1,2}))?$", val)
+    if not match:
+        return val
+
+    hour = int(match.group(1))
+    min_str = match.group(2)
+
+    if min_str is None:
+        minute = 0
+    else:
+        # If float like 18.3 was passed, min_str is '3' -> 30 mins
+        if len(min_str) == 1:
+            minute = int(min_str) * 10
+        else:
+            minute = int(min_str)
+
+    period = "a.m." if hour < 12 else "p.m."
+    hour_12 = hour % 12
+    if hour_12 == 0:
+        hour_12 = 12
+
+    return f"{hour_12}:{minute:02d} {period}"
+
+
+def get_day_name(date_input: str) -> str:
+    """
+    Returns the day of the week (e.g. 'Tuesday') from YYYY-MM-DD date string.
+    """
+    if not date_input:
+        return ""
+    try:
+        dt = datetime.strptime(date_input.strip(), "%Y-%m-%d")
+        return dt.strftime("%A")
+    except Exception:
+        return ""
+
+
 def send_doctor_notification(booking: dict) -> bool:
     """
     Sends an instant WhatsApp notification to the assigned doctor right after
     a booking is successfully created in Supabase.
     Exact format required:
-    "New Appointment: [Patient Name], [Phone Number], [Date], [Time], [Procedure]"
+    "New Appointment: [Patient Name], [Phone Number], [Date], [Day], [Time], [Procedure]"
     """
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     appointment_id = booking.get("appointment_id", "N/A")
     patient_name = booking.get("patient_name", "Unknown Patient")
     patient_phone = booking.get("patient_phone", "")
     date_str = booking.get("date_str", "")
-    time_str = booking.get("time_str", "")
+    raw_time = booking.get("time_str", "")
     procedure = booking.get("procedure", "Dental Consultation")
 
+    # Format time to 12-hour AM/PM format (e.g. "5:45 p.m.")
+    formatted_time = format_time_12h(raw_time)
+
+    # Get day of week (e.g. "Tuesday")
+    day_str = booking.get("day_str") or get_day_name(date_str)
+
     # Deduplication key: ensure this booking only fires one notification
-    dedup_key = f"{patient_phone}_{date_str}_{time_str}"
+    dedup_key = f"{patient_phone}_{date_str}_{raw_time}"
     if appointment_id != "N/A":
         dedup_key = f"appt_{appointment_id}"
 
@@ -102,8 +162,11 @@ def send_doctor_notification(booking: dict) -> bool:
         print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] META credentials missing in .env — skipping doctor alert.")
         return False
 
-    # Exact format: "New Appointment: [Patient Name], [Phone Number], [Date], [Time], [Procedure]"
-    message = f"New Appointment: {patient_name}, {patient_phone}, {date_str}, {time_str}, {procedure}"
+    # Exact format: "New Appointment: [Patient Name], [Phone Number], [Date], [Day], [Time], [Procedure]"
+    if day_str:
+        message = f"New Appointment: {patient_name}, {patient_phone}, {date_str}, {day_str}, {formatted_time}, {procedure}"
+    else:
+        message = f"New Appointment: {patient_name}, {patient_phone}, {date_str}, {formatted_time}, {procedure}"
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -117,7 +180,7 @@ def send_doctor_notification(booking: dict) -> bool:
         "text": {"body": message}
     }
 
-    print(f"\n[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] Triggered send_doctor_notification for {patient_name} ({patient_phone}) at {date_str} {time_str}")
+    print(f"\n[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] Triggered send_doctor_notification for {patient_name} ({patient_phone}) at {date_str} {day_str} {formatted_time}")
     print(f"[Doctor Notification] Outgoing Payload:\n{json.dumps(payload, indent=2)}")
 
     try:
