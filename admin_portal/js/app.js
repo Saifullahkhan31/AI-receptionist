@@ -88,12 +88,29 @@ function initApp(doctor) {
   // ── Initialise first view (Today) ───────────────
   TodayView.init(doctor);
   PatientsView.init();
+  SettingsView.init(doctor);
 
-  // ── Show FAB only on Today and Lab views ────────
+  // ── Show FAB only on Today ─────────────────────
   const fab = document.getElementById('fab-add');
   window.addEventListener('viewchange', e => {
     const v = e.detail.view;
-    fab.style.display = (v === 'today' || v === 'lab') ? 'flex' : 'none';
+    fab.style.display = v === 'today' ? 'flex' : 'none';
+    const appMain = document.getElementById('app-main');
+    if (appMain) {
+      appMain.classList.toggle('patients-view-active', v === 'patients');
+      if (v === 'patients') appMain.scrollTop = 0;
+    }
+    appShell.classList.toggle('settings-active', v === 'settings');
+    const title = document.querySelector('.top-bar-title');
+    const date = document.getElementById('top-bar-date');
+    const mobileDate = document.getElementById('top-bar-date-mobile');
+    if (title) title.textContent = v === 'patients' ? 'Patients' : v === 'settings' ? 'Settings' : "Today's Appointments";
+    if (date) date.textContent = v === 'patients' ? 'Patient records & history' : v === 'settings' ? 'Clinic configuration' : dateStr;
+    if (mobileDate) mobileDate.textContent = v === 'patients'
+      ? 'Patient records & history'
+      : v === 'settings'
+        ? 'Clinic configuration'
+        : now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   });
 
   console.log('[APP] Initialised for', displayName);

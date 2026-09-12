@@ -8,16 +8,24 @@ const API = (() => {
   'use strict';
 
   const BASE = CONFIG.SUPABASE_URL + '/rest/v1';
-  const HEADERS = {
-    'apikey':        CONFIG.SUPABASE_ANON_KEY,
-    'Authorization': 'Bearer ' + CONFIG.SUPABASE_ANON_KEY,
-    'Content-Type':  'application/json',
-    'Prefer':        'return=representation',
-  };
+  function getHeaders() {
+    return {
+      'apikey':        CONFIG.SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + (localStorage.getItem(CONFIG.SESSION_KEY) || CONFIG.SUPABASE_ANON_KEY),
+      'Content-Type':  'application/json',
+      'Prefer':        'return=representation',
+    };
+  }
+
+  // M4: always use Karachi timezone so Today's query is correct regardless of the doctor's device clock
+  function localDateISO(date = new Date()) {
+    // 'en-CA' locale produces YYYY-MM-DD format; timeZone ensures it's Karachi time, not local
+    return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+  }
 
   async function request(path, options = {}) {
     const res = await fetch(BASE + path, {
-      headers: HEADERS,
+      headers: getHeaders(),
       ...options,
     });
     if (!res.ok) {
@@ -31,14 +39,14 @@ const API = (() => {
   return {
     // ── Appointments ─────────────────────────────
     async getTodayAppointments(doctorId) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = localDateISO();
       let path = `/appointments?appointment_date=eq.${today}&order=appointment_time.asc.nullslast`;
       if (doctorId) path += `&doctor_id=eq.${doctorId}`;
       return request(path);
     },
 
     async getAllTodayAppointments() {
-      const today = new Date().toISOString().split('T')[0];
+      const today = localDateISO();
       return request(`/appointments?appointment_date=eq.${today}&order=appointment_time.asc.nullslast`);
     },
 
@@ -98,9 +106,26 @@ const API = (() => {
       return request(`/patients?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) });
     },
 
-    async getPatientTreatments(patientName) {
-      const n = encodeURIComponent(patientName);
-      return request(`/treatments?patient_name=eq.${n}&order=date.desc`);
+    // C1 FIX: query by patient_id UUID, not patient_name text
+    async getPatientTreatments(patientId) {
+      return request(`/treatments?patient_id=eq.${patientId}&order=date.desc`);
+    },
+
+    async getLatestPatientTreatment(patientId) {
+      const rows = await request(`/treatments?patient_id=eq.${patientId}&order=date.desc&limit=1`);
+      return rows[0] || null;
+    },
+
+    // C1 FIX: use patient_id UUIDs for bulk last-visit lookup
+    async getLatestTreatmentsForPatients(patientIds) {
+      if (!patientIds || patientIds.length === 0) return [];
+      const list = patientIds.join(',');
+      return request(`/treatments?patient_id=in.(${list})&order=date.desc`);
+    },
+
+    // C2 FIX: query the appointments table (not treatments) for the Appointments tab
+    async getPatientAppointments(patientId) {
+      return request(`/appointments?patient_id=eq.${patientId}&order=appointment_date.desc,appointment_time.desc`);
     },
 
     // ── Services (for autocomplete) ───────────────

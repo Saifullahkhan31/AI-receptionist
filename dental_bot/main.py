@@ -49,7 +49,7 @@ app.add_middleware(
 )
 
 # ── JWT config ────────────────────────────────────────────────────────────────
-JWT_SECRET    = os.getenv("JWT_SECRET", "cmd-portal-secret-change-in-prod")
+JWT_SECRET    = os.getenv("SUPABASE_JWT_SECRET", "cmd-portal-secret-change-in-prod")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 12
 
@@ -141,11 +141,12 @@ async def admin_login(body: PinLoginRequest):
     if not matched_doctor:
         raise HTTPException(status_code=401, detail="Wrong PIN.")
 
-    # Issue JWT valid for JWT_EXPIRE_HOURS
+    # Issue JWT valid for JWT_EXPIRE_HOURS, formatted for Supabase RLS
     payload = {
+        "aud":  "authenticated",
+        "role": "authenticated",
         "sub":  str(matched_doctor["id"]),
         "name": matched_doctor["name"],
-        "role": matched_doctor["role"],
         "exp":  datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE_HOURS),
     }
     token = pyjwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -169,8 +170,8 @@ async def admin_me(request: Request):
     if not token:
         raise HTTPException(status_code=401, detail="No token provided.")
     try:
-        payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return JSONResponse({"id": payload["sub"], "name": payload["name"], "role": payload["role"]})
+        payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM], audience="authenticated")
+        return JSONResponse({"id": payload["sub"], "name": payload.get("name", "Doctor"), "role": payload.get("role", "authenticated")})
     except pyjwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired.")
     except Exception:

@@ -6,12 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#2196D3" />
   <meta name="description"
-    content="Centre for Modern Dentistry — Admin Portal for doctors to manage appointments and patient records." />
+    content="Center for Modern Dentistry — Admin Portal for doctors to manage appointments and patient records." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="CMD Portal" />
 
-  <title>CMD Admin Portal — Centre for Modern Dentistry</title>
+  <title>CMD Admin Portal — Center for Modern Dentistry</title>
 
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="assets/icon-192.png" type="image/png" />
@@ -42,7 +42,7 @@
         <div class="login-logo-wrap">
           <img src="assets/cmd-logo.png" alt="CMD Logo" class="login-logo" />
         </div>
-        <h1 class="login-clinic-name">Centre for Modern Dentistry</h1>
+        <h1 class="login-clinic-name">Center for Modern Dentistry</h1>
         <p class="login-subtitle">Admin Portal</p>
       </div>
 
@@ -107,30 +107,36 @@
       </div>
       <button class="nav-btn active" data-view="today" id="nav-today" aria-label="Today">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="2.5" y="4.5" width="15" height="13" rx="2" /><line x1="2.5" y1="8.5" x2="17.5" y2="8.5" /><line x1="7" y1="2.5" x2="7" y2="6.5" stroke-linecap="round" /><line x1="13" y1="2.5" x2="13" y2="6.5" stroke-linecap="round" /><circle cx="7" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="10" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="13" cy="12" r="1" fill="currentColor" stroke="none" />
+          <rect x="2.5" y="4.5" width="15" height="13" rx="2" />
+          <line x1="2.5" y1="8.5" x2="17.5" y2="8.5" />
+          <line x1="7" y1="2.5" x2="7" y2="6.5" stroke-linecap="round" />
+          <line x1="13" y1="2.5" x2="13" y2="6.5" stroke-linecap="round" />
+          <circle cx="7" cy="12" r="1" fill="currentColor" stroke="none" />
+          <circle cx="10" cy="12" r="1" fill="currentColor" stroke="none" />
+          <circle cx="13" cy="12" r="1" fill="currentColor" stroke="none" />
         </svg>
         <span class="nav-label">Today</span>
       </button>
       <button class="nav-btn" data-view="patients" id="nav-patients" aria-label="Patients">
-        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-          <circle cx="10" cy="6.5" r="3.5" /><path d="M3 17c0-3.314 3.134-6 7-6s7 2.686 7 6" />
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"
+          stroke-linecap="round">
+          <circle cx="10" cy="6.5" r="3.5" />
+          <path d="M3 17c0-3.314 3.134-6 7-6s7 2.686 7 6" />
         </svg>
         <span class="nav-label">Patients</span>
       </button>
-      <button class="nav-btn" data-view="lab" id="nav-lab" aria-label="Lab Work">
-        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M7.5 3v6.5L3.5 16a1 1 0 0 0 .9 1.5h11.2a1 1 0 0 0 .9-1.5l-4-6.5V3" /><line x1="6.5" y1="3" x2="13.5" y2="3" stroke-linecap="round" /><circle cx="8.5" cy="13.5" r="1" fill="currentColor" stroke="none" /><circle cx="11.5" cy="15" r=".7" fill="currentColor" stroke="none" />
-        </svg>
-        <span class="nav-label">Lab</span>
-      </button>
       <button class="nav-btn" data-view="settings" id="nav-settings" aria-label="Settings">
-        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-          <circle cx="10" cy="10" r="3" /><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.41 1.41M14.37 14.37l1.41 1.41M15.78 4.22l-1.41 1.41M5.63 14.37l-1.41 1.41" />
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"
+          stroke-linecap="round">
+          <circle cx="10" cy="10" r="3" />
+          <path
+            d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.41 1.41M14.37 14.37l1.41 1.41M15.78 4.22l-1.41 1.41M5.63 14.37l-1.41 1.41" />
         </svg>
         <span class="nav-label">Settings</span>
       </button>
       <div class="sidebar-account">
-        <div class="account-summary"><span class="account-avatar" id="sidebar-avatar">DM</span><span><strong id="sidebar-doctor">Dr. Mustafa</strong><small>General Dentist</small></span></div>
+        <div class="account-summary"><span class="account-avatar" id="sidebar-avatar">DM</span><span><strong
+              id="sidebar-doctor">Dr. Mustafa</strong><small>General Dentist</small></span></div>
         <button class="sidebar-logout" id="sidebar-logout"><span>↪</span> Log Out</button>
       </div>
     </nav>
@@ -140,7 +146,9 @@
 
       <!-- Top Bar -->
       <header class="top-bar" id="top-bar">
-        <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Collapse navigation" title="Collapse navigation"><span class="toggle-expanded">‹</span><span class="toggle-collapsed">☰</span></button>
+        <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Collapse navigation"
+          title="Collapse navigation"><span class="toggle-expanded">‹</span><span
+            class="toggle-collapsed">☰</span></button>
         <div class="top-bar-left">
           <img src="assets/cmd-logo.png" alt="CMD" class="top-bar-logo" />
           <span class="mobile-cmd-label">CMD</span>
@@ -150,7 +158,13 @@
             <span class="top-bar-date-mobile" id="top-bar-date-mobile"></span>
           </div>
         </div>
-        <div class="top-bar-actions"><button class="notification-btn" aria-label="Notifications"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2a6 6 0 0 0-6 6v4l-1.5 2.5h15L16 12V8a6 6 0 0 0-6-6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 15.5a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><i></i></button><button class="profile-btn" id="profile-btn"><span class="account-avatar" id="top-avatar">DM</span><span id="top-bar-doctor">Dr. Mustafa</span></button></div>
+        <div class="top-bar-actions"><button class="notification-btn" aria-label="Notifications"><svg width="18"
+              height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M10 2a6 6 0 0 0-6 6v4l-1.5 2.5h15L16 12V8a6 6 0 0 0-6-6Z" stroke="currentColor"
+                stroke-width="1.5" stroke-linejoin="round" />
+              <path d="M8 15.5a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg><i></i></button><button class="profile-btn" id="profile-btn"><span class="account-avatar"
+              id="top-avatar">DM</span><span id="top-bar-doctor">Dr. Mustafa</span></button></div>
       </header>
 
       <!-- Page Views -->
@@ -159,41 +173,77 @@
         <!-- TODAY VIEW -->
         <section id="view-today" class="app-view active-view">
 
-          <div class="today-intro"><p>Good morning, <span id="greeting-doctor">Dr. Mustafa</span> 👋</p><h1>Today's Overview</h1></div>
+          <div class="today-intro">
+            <p>Good morning, <span id="greeting-doctor">Dr. Mustafa</span> 👋</p>
+            <h1>Today's Overview</h1>
+          </div>
 
           <!-- Stat Pills -->
           <div class="stat-strip" id="stat-strip">
             <div class="stat-pill" id="stat-total">
-              <span class="stat-icon stat-icon--blue" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="2.5" y="4.5" width="15" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/><line x1="2.5" y1="8.5" x2="17.5" y2="8.5" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="2.5" x2="7" y2="6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="2.5" x2="13" y2="6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+              <span class="stat-icon stat-icon--blue" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20"
+                  fill="none">
+                  <rect x="2.5" y="4.5" width="15" height="13" rx="2" stroke="currentColor" stroke-width="1.5" />
+                  <line x1="2.5" y1="8.5" x2="17.5" y2="8.5" stroke="currentColor" stroke-width="1.5" />
+                  <line x1="7" y1="2.5" x2="7" y2="6.5" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" />
+                  <line x1="13" y1="2.5" x2="13" y2="6.5" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" />
+                </svg></span>
               <span class="stat-num" id="stat-num-total">—</span>
-              <span class="stat-label">Today</span>
+              <span class="stat-label">Total Today</span>
             </div>
             <div class="stat-pill stat-pill--green" id="stat-show">
-              <span class="stat-icon stat-icon--green" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 9l2.5 2.5 4.5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="stat-icon stat-icon--green" aria-hidden="true"><svg width="18" height="18"
+                  viewBox="0 0 18 18" fill="none">
+                  <circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5" />
+                  <path d="M5.5 9l2.5 2.5 4.5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                    stroke-linejoin="round" />
+                </svg></span>
               <span class="stat-num" id="stat-num-show">—</span>
-              <span class="stat-label">Show</span>
+              <span class="stat-label">Arrived</span>
             </div>
             <div class="stat-pill stat-pill--amber" id="stat-pending">
-              <span class="stat-icon stat-icon--amber" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M9 5v4l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="stat-icon stat-icon--amber" aria-hidden="true"><svg width="18" height="18"
+                  viewBox="0 0 18 18" fill="none">
+                  <circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5" />
+                  <path d="M9 5v4l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                    stroke-linejoin="round" />
+                </svg></span>
               <span class="stat-num" id="stat-num-pending">—</span>
-              <span class="stat-label">Pending</span>
+              <span class="stat-label">Scheduled</span>
             </div>
             <div class="stat-pill stat-pill--red" id="stat-noshow">
-              <span class="stat-icon stat-icon--red" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 6.5l5 5M11.5 6.5l-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+              <span class="stat-icon stat-icon--red" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18"
+                  fill="none">
+                  <circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5" />
+                  <path d="M6.5 6.5l5 5M11.5 6.5l-5 5" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" />
+                </svg></span>
               <span class="stat-num" id="stat-num-noshow">—</span>
-              <span class="stat-label">No Show</span>
+              <span class="stat-label">Did Not Arrive</span>
             </div>
           </div>
 
           <!-- Appointment List -->
           <div class="appointments-panel">
-            <div class="appointments-heading"><h2>Appointments <span id="appointment-count">0</span></h2><div class="appointment-filters"><button class="active">All</button><button>Show</button><button>Pending</button><button>No Show</button></div><small>← swipe to act</small></div>
-            <div class="appointment-table-head"><span>Time</span><span>Patient</span><span>Status</span><span>Actions</span></div>
+            <div class="appointments-heading">
+              <h2>Appointments <span id="appointment-count">0</span></h2>
+              <div class="doctor-filters">
+                <button class="doctor-filter active" data-doctor="all">All Doctors</button>
+                <button class="doctor-filter" data-doctor="mustafa">Dr. Mustafa</button>
+                <button class="doctor-filter" data-doctor="qasim">Dr. Qasim</button>
+              </div>
+              <div class="appointment-filters"><button class="active" data-filter="all">All</button><button data-filter="show">Arrived</button><button data-filter="pending">Scheduled</button><button data-filter="no-show">Did Not Arrive</button></div>
+            </div>
+            <div class="appointment-table-head">
+              <span>Time</span><span>Patient</span><span>Status</span><span>Actions</span>
+            </div>
             <div class="appt-list" id="appt-list">
-            <!-- Skeleton placeholders shown while loading -->
-            <div class="appt-skeleton"></div>
-            <div class="appt-skeleton"></div>
-            <div class="appt-skeleton"></div>
+              <!-- Skeleton placeholders shown while loading -->
+              <div class="appt-skeleton"></div>
+              <div class="appt-skeleton"></div>
+              <div class="appt-skeleton"></div>
             </div>
           </div>
 
@@ -208,57 +258,48 @@
 
         <!-- PATIENTS VIEW -->
         <section id="view-patients" class="app-view" hidden>
-          <!-- Search Bar & Filters -->
-          <div class="search-bar-wrap">
-            <div class="search-filters" style="display: flex; gap: 8px; margin-bottom: 12px;">
-              <div class="search-input-box" style="flex: 1;">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                <input type="text" id="patient-search" class="search-input"
-                  placeholder="Search patients by name or phone..." autocomplete="off">
-                <button class="search-clear" id="search-clear" hidden aria-label="Clear search">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+          <div class="patients-page-head">
+            <div><h1>Patients</h1><p><span id="patients-total">0</span> patients registered</p></div>
+            <div class="patients-head-actions">
+              <div class="patients-search-box">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7.5"/><path d="m16.5 16.5 4 4"/></svg>
+                <input type="text" id="patient-search" placeholder="Search patients by name..." autocomplete="off">
+                <button id="search-clear" hidden aria-label="Clear search">×</button>
               </div>
-
-              <div class="search-input-box" style="flex: 0 0 auto; width: auto; padding: 0 12px;">
-                <input type="month" id="patient-month-filter" class="search-input" title="Filter by Month"
-                  style="padding: 0;">
-                <button class="search-clear" id="month-clear" hidden aria-label="Clear month" style="margin-left: 8px;">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
+              <button class="patients-add-btn" id="patients-add-btn"><svg class="patients-action-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="6" r="3"/><path d="M2.5 16c0-3 2.5-5 5.5-5 1.4 0 2.7.5 3.7 1.2"/><path d="M15 11v6M12 14h6"/></svg> Add Patient</button>
             </div>
           </div>
-
-          <!-- Patient List -->
-          <div class="patient-list" id="patient-list"></div>
-
-          <!-- Empty / Initial State -->
-          <div class="empty-state" id="patients-empty">
-            <div class="empty-icon">👥</div>
-            <p class="empty-title">Search Patients</p>
-            <p class="empty-sub">Type a name or phone number above to find patient records and history.</p>
+          <div class="patients-workspace">
+            <aside class="patients-list-panel">
+              <div class="patient-filter-row">
+                <button class="patient-filter active" data-filter="All">All</button>
+              </div>
+              <div class="patient-count" id="patient-count">0 PATIENTS</div>
+              <div class="patient-list" id="patient-list"></div>
+              <div class="patients-empty-list" id="patients-empty"><strong>No patients found</strong><span>Try another search or filter.</span></div>
+              <input type="month" id="patient-month-filter" hidden>
+              <button id="month-clear" hidden></button>
+            </aside>
+            <section class="patient-detail-panel" id="patient-detail-panel">
+              <div class="patient-detail-empty" id="patient-detail-empty"><div class="patient-empty-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="14" cy="11" r="5"/><path d="M4 27c0-5 4.5-9 10-9 3.2 0 6 1.4 7.8 3.6"/><circle cx="25" cy="24" r="5" fill="#1a73e8" stroke="none"/><path d="M25 21.5v5M22.5 24h5" stroke="#fff" stroke-width="1.7"/></svg></div><strong>Select a patient</strong><span>to view their details</span></div>
+              <div class="patient-detail-content" id="patient-detail-content" hidden>
+                <button class="patient-detail-close" id="patient-detail-close" aria-label="Close patient details">×</button>
+                <div class="patient-detail-hero">
+                  <div class="patient-detail-avatar" id="detail-avatar">SA</div>
+                  <div class="patient-detail-identity"><div><h2 id="detail-name"></h2></div><p id="detail-meta"></p><div class="patient-detail-actions"><button class="primary-action"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 2.5v4M13 2.5v4"/></svg> Book Appointment</button><button class="secondary-action"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4.5h14v9H8l-4 3v-12Z"/></svg> Send Message</button><button class="more-action">…</button></div></div>
+                </div>
+                <div class="patient-stat-cards"><div><small>LAST VISIT</small><strong id="detail-last-visit">—</strong><span id="detail-last-treatment">No visit recorded</span></div><div><small>TOTAL VISITS</small><strong id="detail-total-visits">0</strong><span>treatments</span></div><div id="detail-balance-card"><small>OUTSTANDING BALANCE</small><strong id="detail-balance-value">—</strong><span id="detail-balance-note">Not recorded</span></div></div>
+                <div class="patient-detail-tabs"><button class="active" data-detail-tab="appointments">Appointments</button><button data-detail-tab="treatments">Treatment History</button></div>
+                <div class="patient-detail-body" id="patient-detail-body"></div>
+              </div>
+            </section>
           </div>
-        </section>
-
-        <!-- LAB VIEW -->
-        <section id="view-lab" class="app-view" hidden>
-          <div class="coming-soon">Lab Work — coming soon</div>
+          <button class="patients-mobile-add" id="patients-mobile-add"><svg class="patients-action-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="6" r="3"/><path d="M2.5 16c0-3 2.5-5 5.5-5 1.4 0 2.7.5 3.7 1.2"/><path d="M15 11v6M12 14h6"/></svg> Add Patient</button>
         </section>
 
         <!-- SETTINGS VIEW -->
         <section id="view-settings" class="app-view" hidden>
-          <div class="coming-soon">Settings — coming soon</div>
+          <div id="settings-root" class="settings-root"></div>
         </section>
 
       </main>
@@ -284,7 +325,12 @@
   <div id="modal-add-appt" class="modal-overlay" hidden aria-modal="true" role="dialog">
     <div class="bottom-sheet add-appt-sheet" id="sheet-add-appt">
       <div class="sheet-handle"></div>
-      <div class="add-appt-header"><div><h2 class="sheet-title">New Appointment</h2><p id="add-appt-date-label">Sunday, 6 September 2026</p></div><button type="button" class="sheet-close" id="close-add-appt" aria-label="Close">×</button></div>
+      <div class="add-appt-header">
+        <div>
+          <h2 class="sheet-title">New Appointment</h2>
+          <p id="add-appt-date-label">Sunday, 6 September 2026</p>
+        </div><button type="button" class="sheet-close" id="close-add-appt" aria-label="Close">×</button>
+      </div>
 
       <form id="form-add-appt" class="sheet-form add-appt-form" novalidate>
         <div class="form-group">
@@ -320,7 +366,9 @@
             <button type="button" class="doctor-btn" data-doctor="qasim" id="doc-btn-qasim">Dr. Qasim</button>
           </div>
         </div>
-        <div class="add-appt-actions"><button type="button" class="btn-secondary" id="cancel-add-appt">Cancel</button><button type="submit" class="btn-primary" id="btn-save-appt">Add Appointment</button></div>
+        <div class="add-appt-actions"><button type="button" class="btn-secondary"
+            id="cancel-add-appt">Cancel</button><button type="submit" class="btn-primary" id="btn-save-appt">Add
+            Appointment</button></div>
       </form>
     </div>
   </div>
@@ -331,12 +379,40 @@
       <div class="sheet-handle"></div>
       <h2 class="sheet-title" id="status-sheet-name">Update Status</h2>
       <div class="status-options" id="status-options">
-        <button class="status-opt status-opt--green" data-status="Show" id="status-show">Show</button>
+        <button class="status-opt status-opt--green" data-status="Show" id="status-show">Arrived</button>
         <button class="status-opt status-opt--amber" data-status="Tentative Appt"
-          id="status-tentative">Tentative</button>
-        <button class="status-opt status-opt--red" data-status="No Show" id="status-noshow">No Show</button>
+          id="status-tentative">Scheduled</button>
+        <button class="status-opt status-opt--red" data-status="No Show" id="status-noshow">Did Not Arrive</button>
         <button class="status-opt status-opt--grey" data-status="Appt Cancel/Postpone"
           id="status-cancel">Cancelled</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPOINTMENT DETAILS -->
+  <div id="modal-appt-view" class="modal-overlay appointment-view-modal" hidden aria-modal="true" role="dialog">
+    <div class="appointment-view-card">
+      <div class="appointment-view-header">
+        <div>
+          <p>Appointment Details</p>
+          <h2 id="view-appt-name">Patient Name</h2>
+        </div>
+        <button type="button" id="close-appt-view" aria-label="Close appointment details">×</button>
+      </div>
+      <div class="appointment-view-source" id="view-appt-source">Booking source not recorded</div>
+      <div class="appointment-view-grid">
+        <div><span>Date</span><strong id="view-appt-date">—</strong></div>
+        <div><span>Time</span><strong id="view-appt-time">—</strong></div>
+        <div><span>Status</span><strong id="view-appt-status">—</strong></div>
+        <div><span>Treatment</span><strong id="view-appt-treatment">—</strong></div>
+        <div><span>Patient phone</span><strong id="view-appt-phone">—</strong></div>
+        <div><span>Requested doctor</span><strong id="view-appt-doctor">Not recorded</strong></div>
+        <div class="appointment-view-wide"><span>Booked on</span><strong id="view-appt-booked">Not recorded</strong></div>
+      </div>
+      <p class="appointment-view-notes" id="view-appt-notes" hidden></p>
+      <div class="appointment-view-actions">
+        <button type="button" class="view-secondary-btn" id="dismiss-appt-view">Close</button>
+        <button type="button" class="view-primary-btn" id="view-update-status">Update Status</button>
       </div>
     </div>
   </div>
@@ -374,11 +450,29 @@
     </div>
   </div>
 
+  <div id="modal-add-patient" class="modal-overlay" hidden aria-modal="true" role="dialog">
+    <div class="add-patient-sheet">
+      <div class="sheet-handle"></div>
+      <div class="add-patient-heading"><div><h2>Add Patient</h2><p>Create a new patient record</p></div><button id="close-add-patient" aria-label="Close">×</button></div>
+      <form id="add-patient-form">
+        <label>Full Name<input id="new-patient-name" required placeholder="e.g. Sarah Al-Rashidi"></label>
+        <label>Phone Number<input id="new-patient-phone" placeholder="+92 300 0000000"></label>
+        <label>Email<input id="new-patient-email" type="email" placeholder="patient@email.com"></label>
+        <label>Date of Birth<input id="new-patient-dob" type="date"></label>
+        <fieldset><legend>Gender</legend><div class="gender-options"><button type="button" data-gender="Male">Male</button><button type="button" data-gender="Female">Female</button><button type="button" data-gender="Other">Other</button></div></fieldset>
+        <button class="save-patient-btn" type="submit"><svg class="patients-action-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="6" r="3"/><path d="M2.5 16c0-3 2.5-5 5.5-5 1.4 0 2.7.5 3.7 1.2"/><path d="M15 11v6M12 14h6"/></svg> Save Patient</button>
+      </form>
+    </div>
+  </div>
+
   <!-- DOCTOR PROFILE SHEET (mobile Today header) -->
   <div id="modal-doctor-profile" class="modal-overlay doctor-profile-modal" hidden aria-modal="true" role="dialog">
     <div class="doctor-profile-sheet">
       <div class="sheet-handle"></div>
-      <div class="doctor-profile-summary"><span class="doctor-profile-avatar" id="profile-avatar">DM</span><div><strong id="profile-doctor-name">Dr. Mustafa</strong><span>General Dentist</span><em><i></i> On Duty</em></div></div>
+      <div class="doctor-profile-summary"><span class="doctor-profile-avatar" id="profile-avatar">DM</span>
+        <div><strong id="profile-doctor-name">Dr. Mustafa</strong><span>General Dentist</span><em><i></i> On Duty</em>
+        </div>
+      </div>
       <button class="doctor-profile-logout" id="doctor-profile-logout">↪ &nbsp; Log Out</button>
     </div>
   </div>
@@ -389,7 +483,8 @@
       <div class="logout-icon" aria-hidden="true">↪</div>
       <h2>Log out?</h2>
       <p>Are you sure you want to log out of the CMD Portal?</p>
-      <div class="logout-actions"><button type="button" id="cancel-logout">Cancel</button><button type="button" id="confirm-logout">Log Out</button></div>
+      <div class="logout-actions"><button type="button" id="cancel-logout">Cancel</button><button type="button"
+          id="confirm-logout">Log Out</button></div>
     </div>
   </div>
 
@@ -400,6 +495,7 @@
   <script src="js/router.js"></script>
   <script src="js/views/today.js"></script>
   <script src="js/views/patients.js"></script>
+  <script src="js/views/settings.js"></script>
   <script src="js/app.js"></script>
 
 </body>

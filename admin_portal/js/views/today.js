@@ -11,9 +11,12 @@ const TodayView = (() => {
   // ── State ───────────────────────────────────────
   let appointments = [];
   let doctorData = null;
-  let activeCard = null; // currently expanded card id
-  let statusTarget = null; // appt id awaiting status pick
+  let activeCard = null;
+  let statusTarget = null;
+  let viewTarget = null;
+  let doctorDirectory = new Map();
   let activeFilter = 'all';
+  let activeDoctorFilter = 'all'; // C5: 'all' | 'mustafa' | 'qasim'
 
   // ── DOM Refs ────────────────────────────────────
   const listEl = document.getElementById('appt-list');
@@ -41,10 +44,34 @@ const TodayView = (() => {
   const btnSave = document.getElementById('btn-save-appt');
   const docBtns = document.querySelectorAll('.doctor-btn');
 
+  function updateSaveButtonState() {
+    if (!btnSave) return;
+    const complete = [inputName, inputPhone, inputDate, inputTime, inputTreat]
+      .every(input => input && input.value.trim().length > 0);
+    btnSave.classList.toggle('is-ready', complete);
+    btnSave.setAttribute('aria-disabled', complete ? 'false' : 'true');
+  }
+
   // Status picker modal
   const modalStatus = document.getElementById('modal-status');
   const statusName = document.getElementById('status-sheet-name');
   const statusOpts = document.getElementById('status-options');
+
+  // Appointment details modal
+  const modalView = document.getElementById('modal-appt-view');
+  const viewName = document.getElementById('view-appt-name');
+  const viewSource = document.getElementById('view-appt-source');
+  const viewDate = document.getElementById('view-appt-date');
+  const viewTime = document.getElementById('view-appt-time');
+  const viewStatus = document.getElementById('view-appt-status');
+  const viewTreatment = document.getElementById('view-appt-treatment');
+  const viewPhone = document.getElementById('view-appt-phone');
+  const viewDoctor = document.getElementById('view-appt-doctor');
+  const viewBooked = document.getElementById('view-appt-booked');
+  const viewNotes = document.getElementById('view-appt-notes');
+  const closeViewBtn = document.getElementById('close-appt-view');
+  const dismissViewBtn = document.getElementById('dismiss-appt-view');
+  const updateViewStatusBtn = document.getElementById('view-update-status');
 
   // ── Format helpers ──────────────────────────────
   function formatTime(timeStr) {
@@ -55,23 +82,61 @@ const TodayView = (() => {
     return { h: h12 + ':' + String(m).padStart(2, '0'), ampm };
   }
 
+  // C6: treat 'Confirmed' (bot-saved status) same as 'Tentative Appt' (Scheduled)
   function badgeClass(status) {
     if (!status) return 'badge-tentative';
     const s = status.toLowerCase();
     if (s === 'show') return 'badge-show';
     if (s === 'no show') return 'badge-noshow';
     if (s.includes('cancel') || s.includes('postpone')) return 'badge-cancel';
-    return 'badge-tentative';
+    return 'badge-tentative'; // covers 'Confirmed', 'Tentative Appt', ''
   }
 
   function badgeLabel(status) {
-    if (!status) return 'Tentative';
+    if (!status) return 'Scheduled';
     const s = status.toLowerCase();
-    if (s === 'show') return 'Show';
-    if (s === 'no show') return 'No Show';
+    if (s === 'show') return 'Arrived';
+    if (s === 'no show') return 'Did Not Arrive';
     if (s.includes('cancel') || s.includes('postpone')) return 'Cancelled';
-    return 'Tentative';
+    return 'Scheduled'; // covers 'Confirmed', 'Tentative Appt', ''
   }
+
+  function formatAppointmentDate(dateStr) {
+    if (!dateStr) return 'Not recorded';
+    const parts = String(dateStr).split('-').map(Number);
+    if (parts.length !== 3 || parts.some(Number.isNaN)) return String(dateStr);
+    return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    });
+  }
+
+  function formatBookedAt(value) {
+    if (!value) return 'Not recorded';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString('en-GB', {
+      timeZone: 'Asia/Karachi', weekday: 'short', day: 'numeric', month: 'short',
+      year: 'numeric', hour: 'numeric', minute: '2-digit',
+    });
+  }
+
+  function requestedDoctor(appt) {
+    const doctor = doctorDirectory.get(appt.doctor_id);
+    return appt.doctor_name || appt.requested_doctor || doctor?.display_name || doctor?.name || 'Not recorded';
+  }
+
+  function bookingSource(appt) {
+    const rawSource = String(appt.booked_by || '');
+    const source = rawSource.toLowerCase();
+    if (source === 'ai_bot' || source === 'whatsapp' || source.includes('whatsapp')) return 'Booked through WhatsApp';
+    if (source.startsWith('manual:')) return `Booked manually by ${rawSource.slice(7).trim() || 'a doctor'}`;
+    if (source === 'manual') return `Booked manually by ${doctorData?.display_name || doctorData?.name || 'a doctor'}`;
+    if (source === 'voice' || source.includes('call')) return 'Booked through phone call';
+    return appt.booked_by ? `Booked via ${appt.booked_by}` : 'Booking source not recorded';
+  }
+
+  // M1: HTML escape helper — prevents XSS from patient names, notes, phone numbers
+  const escape = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   // ── Render appointment card ─────────────────────
   function renderCard(appt) {
@@ -90,21 +155,21 @@ const TodayView = (() => {
     card.innerHTML = `
       <div class="appt-card-main">
         <div class="appt-time-col">
-          <div class="appt-time">${t.h}</div>
-          <div class="appt-time-ampm">${t.ampm}</div>
+          <div class="appt-time">${escape(t.h)}</div>
+          <div class="appt-time-ampm">${escape(t.ampm)}</div>
         </div>
         <div class="patient-group">
-          <div class="patient-avatar patient-avatar--${avatarColor}">${initials}</div>
+          <div class="patient-avatar patient-avatar--${avatarColor}">${escape(initials)}</div>
           <div class="appt-info">
-            <div class="appt-name">${appt.patient_name}</div>
-            <div class="appt-treatment">${appt.treatment_planned || 'No treatment specified'}</div>
+            <div class="appt-name">${escape(appt.patient_name)}</div>
+            <div class="appt-treatment">${escape(appt.treatment_planned || 'No treatment specified')}</div>
           </div>
         </div>
-        <button class="status-badge ${badge}" data-appt-id="${appt.id}" aria-label="Change status">
+        <button class="status-badge ${badge}" data-appt-id="${escape(appt.id)}" aria-label="Change status">
           ${label}
         </button>
         <div class="appt-actions">
-          <button class="appt-view" aria-label="View appointment">◉ <span>View</span></button>
+          <button class="appt-view" aria-label="View appointment"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2"/></svg><span>View</span></button>
           <button class="appt-more" aria-label="More appointment actions">⋮</button>
         </div>
       </div>
@@ -126,7 +191,7 @@ const TodayView = (() => {
 
     card.querySelector('.appt-view').addEventListener('click', e => {
       e.stopPropagation();
-      toggleCard(appt.id);
+      openAppointmentView(appt);
     });
 
     card.querySelector('.appt-more').addEventListener('click', e => {
@@ -139,16 +204,18 @@ const TodayView = (() => {
 
   function renderDetail(appt) {
     const phone = appt.contact_number;
+    // M1: escape all user-supplied values before injecting into innerHTML
+    // For the delete button, use a data attribute + event delegation instead of inline onclick
     return `
-      <div class="appt-detail">
+      <div class="appt-detail" data-detail-id="${escape(appt.id)}">
         ${phone ? `
           <div class="detail-phone">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.38 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.82a16 16 0 0 0 6.27 6.27l1.18-1.18a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-            <a href="tel:${phone}">${phone}</a>
+            <a href="tel:${escape(phone)}">${escape(phone)}</a>
           </div>` : '<div class="detail-phone" style="color:var(--text-muted)">No phone number</div>'}
-        ${appt.notes ? `<div class="detail-notes">${appt.notes}</div>` : ''}
+        ${appt.notes ? `<div class="detail-notes">${escape(appt.notes)}</div>` : ''}
         <div class="detail-actions">
-          <button class="btn-detail" onclick="TodayView.deleteAppt('${appt.id}')">Delete</button>
+          <button class="btn-detail" data-delete-appt="${escape(appt.id)}">Delete</button>
         </div>
       </div>
     `;
@@ -161,12 +228,13 @@ const TodayView = (() => {
   }
 
   // ── Update stats bar ────────────────────────────
+  // C6: count 'Confirmed' in the Scheduled (pending) bucket
   function updateStats() {
     const total = appointments.length;
     const show = appointments.filter(a => a.status === 'Show').length;
     const noshow = appointments.filter(a => a.status === 'No Show').length;
     const pending = appointments.filter(a =>
-      !a.status || a.status === 'Tentative Appt').length;
+      !a.status || a.status === 'Tentative Appt' || a.status === 'Confirmed').length;
 
     statTotal.textContent = total;
     statShow.textContent = show;
@@ -175,7 +243,23 @@ const TodayView = (() => {
     if (appointmentCount) appointmentCount.textContent = total;
   }
 
-  // ── Render full list ────────────────────────────
+  // C5: helper — does this appointment match the selected doctor filter?
+  function matchesDoctor(appt) {
+    if (activeDoctorFilter === 'all') return true;
+    // Match by doctor_id UUID (preferred)
+    const doc = doctorDirectory.get(appt.doctor_id);
+    if (doc) {
+      const name = (doc.display_name || doc.name || '').toLowerCase();
+      return name.includes(activeDoctorFilter); // 'mustafa' or 'qasim'
+    }
+    // Fallback: match by doctor_name field or requested_doctor text
+    const nameField = (appt.doctor_name || appt.requested_doctor || '').toLowerCase();
+    if (nameField) return nameField.includes(activeDoctorFilter);
+    // No doctor info — only show in 'all'
+    return false;
+  }
+
+  // ── Render full list ─────────────────────────────
   function render() {
     listEl.innerHTML = '';
 
@@ -186,9 +270,12 @@ const TodayView = (() => {
     }
 
     emptyEl.hidden = true;
+    // C5: apply doctor filter first, then status filter
     const visibleAppointments = appointments.filter(appt => {
+      if (!matchesDoctor(appt)) return false;
+      // C6: 'Confirmed' treated same as 'Tentative Appt' in status filter
       if (activeFilter === 'show') return appt.status === 'Show';
-      if (activeFilter === 'pending') return !appt.status || appt.status === 'Tentative Appt';
+      if (activeFilter === 'pending') return !appt.status || appt.status === 'Tentative Appt' || appt.status === 'Confirmed';
       if (activeFilter === 'no-show') return appt.status === 'No Show';
       return true;
     });
@@ -203,9 +290,19 @@ const TodayView = (() => {
     updateStats();
   }
 
+  // C5: doctor filter buttons
+  const doctorFilterBtns = document.querySelectorAll('.doctor-filter');
+  doctorFilterBtns.forEach(button => {
+    button.addEventListener('click', () => {
+      activeDoctorFilter = button.dataset.doctor;
+      doctorFilterBtns.forEach(btn => btn.classList.toggle('active', btn === button));
+      render();
+    });
+  });
+
   filterButtons.forEach(button => {
     button.addEventListener('click', () => {
-      activeFilter = button.textContent.trim().toLowerCase().replace(' ', '-');
+      activeFilter = button.dataset.filter || button.textContent.trim().toLowerCase().replace(' ', '-');
       filterButtons.forEach(btn => btn.classList.toggle('active', btn === button));
       render();
     });
@@ -225,7 +322,22 @@ const TodayView = (() => {
   async function load() {
     showSkeletons();
     try {
-      appointments = await API.getAllTodayAppointments();
+      const [rows, doctors] = await Promise.all([
+        API.getAllTodayAppointments(),
+        API.getDoctors().catch(() => []),
+      ]);
+      appointments = rows;
+      doctorDirectory = new Map((doctors || []).map(d => [d.id, d]));
+      
+      // M5: Store doctor UUID on the button elements directly for robust form submission
+      (doctors || []).forEach(doc => {
+        const nameStr = (doc.display_name || doc.name || '').toLowerCase();
+        const btnMustafa = document.getElementById('doc-btn-mustafa');
+        const btnQasim = document.getElementById('doc-btn-qasim');
+        if (nameStr.includes('mustafa') && btnMustafa) btnMustafa.dataset.doctorId = doc.id;
+        if (nameStr.includes('qasim') && btnQasim) btnQasim.dataset.doctorId = doc.id;
+      });
+      
       render();
     } catch (err) {
       console.error('[TODAY] Load error:', err);
@@ -235,6 +347,33 @@ const TodayView = (() => {
   }
 
   // ── Status Picker ───────────────────────────────
+  function openAppointmentView(appt) {
+    viewTarget = appt;
+    viewName.textContent = appt.patient_name || 'Patient';
+    viewSource.textContent = bookingSource(appt);
+    viewDate.textContent = formatAppointmentDate(appt.appointment_date);
+    const time = formatTime(appt.appointment_time);
+    viewTime.textContent = time.ampm ? `${time.h} ${time.ampm}` : 'Not recorded';
+    viewStatus.textContent = badgeLabel(appt.status);
+    viewTreatment.textContent = appt.treatment_planned || 'No treatment specified';
+    viewPhone.textContent = appt.contact_number || 'No phone number';
+    viewDoctor.textContent = requestedDoctor(appt);
+    viewBooked.textContent = formatBookedAt(appt.created_at);
+    if (appt.notes) {
+      viewNotes.hidden = false;
+      viewNotes.textContent = `Notes: ${appt.notes}`;
+    } else {
+      viewNotes.hidden = true;
+      viewNotes.textContent = '';
+    }
+    modalView.hidden = false;
+  }
+
+  function closeAppointmentView() {
+    modalView.hidden = true;
+    viewTarget = null;
+  }
+
   function openStatusPicker(appt) {
     statusTarget = appt;
     statusName.textContent = appt.patient_name;
@@ -277,10 +416,23 @@ const TodayView = (() => {
     if (e.target === modalStatus) closeStatusPicker();
   });
 
+  closeViewBtn.addEventListener('click', closeAppointmentView);
+  dismissViewBtn.addEventListener('click', closeAppointmentView);
+  modalView.addEventListener('click', e => {
+    if (e.target === modalView) closeAppointmentView();
+  });
+  updateViewStatusBtn.addEventListener('click', () => {
+    if (!viewTarget) return;
+    const target = viewTarget;
+    closeAppointmentView();
+    openStatusPicker(target);
+  });
+
   // ── Add Appointment ─────────────────────────────
   function openAddModal() {
     // Pre-fill today's date
-    inputDate.value = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    inputDate.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     inputName.value = '';
     inputPhone.value = '';
     inputTime.value = '';
@@ -303,6 +455,7 @@ const TodayView = (() => {
   function closeAddModal() {
     modalAdd.hidden = true;
     formAdd.reset();
+    updateSaveButtonState();
   }
 
   btnFab.addEventListener('click', openAddModal);
@@ -311,6 +464,11 @@ const TodayView = (() => {
   modalAdd.addEventListener('click', e => {
     if (e.target === modalAdd) closeAddModal();
   });
+  [inputName, inputPhone, inputDate, inputTime, inputTreat].forEach(input => {
+    input.addEventListener('input', updateSaveButtonState);
+    input.addEventListener('change', updateSaveButtonState);
+  });
+  updateSaveButtonState();
 
   // Doctor toggle buttons
   docBtns.forEach(btn => {
@@ -344,10 +502,21 @@ const TodayView = (() => {
         booked_by: 'manual',
       };
 
-      // Find doctor id by name
-      const doctors = await API.getDoctors();
-      const doc = doctors.find(d => d.name === docName);
-      if (doc) data.doctor_id = doc.id;
+      // M5: Read doctor_id directly from the button's dataset
+      if (activeDoc && activeDoc.dataset.doctorId) {
+        data.doctor_id = activeDoc.dataset.doctorId;
+      } else {
+        // Fallback if dataset wasn't set (e.g. Supabase doctors fetch failed on load)
+        const doctors = await API.getDoctors().catch(()=>[]);
+        const doc = doctors.find(d => d.name === docName || d.display_name === docName);
+        if (doc) data.doctor_id = doc.id;
+      }
+
+      const matchedDoc = data.doctor_id ? doctorDirectory.get(data.doctor_id) : null;
+      const actualDocName = matchedDoc ? (matchedDoc.display_name || matchedDoc.name) : docName;
+
+      // Store the actual doctor name so bookingSource() correctly attributes the appointment
+      data.booked_by = `manual:${actualDocName || doctorData?.display_name || doctorData?.name || 'Doctor'}`;
 
       await API.createAppointment(data);
       closeAddModal();
@@ -355,10 +524,14 @@ const TodayView = (() => {
 
     } catch (err) {
       console.error('[TODAY] Save appointment failed:', err);
-      btnSave.textContent = 'Error — Try again';
+      btnSave.textContent = 'Could not save — Try again';
+      btnSave.classList.remove('is-ready');
     } finally {
       btnSave.disabled = false;
-    btnSave.textContent = 'Add Appointment';
+      if (btnSave.textContent === 'Saving...' || btnSave.textContent === 'Could not save — Try again') {
+        btnSave.textContent = 'Add Appointment';
+      }
+      updateSaveButtonState();
     }
   });
 
@@ -374,6 +547,12 @@ const TodayView = (() => {
       await load();
     }
   }
+
+  // M1: event delegation for delete button (replaces removed inline onclick)
+  listEl.addEventListener('click', e => {
+    const btn = e.target.closest('[data-delete-appt]');
+    if (btn) deleteAppt(btn.dataset.deleteAppt);
+  });
 
   // ── Load services for autocomplete ─────────────
   async function loadServices() {
