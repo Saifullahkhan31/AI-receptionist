@@ -5,8 +5,8 @@
 ═══════════════════════════════════════════════ */
 
 const CONFIG = {
-  // Backend URL — Render production server
-  RAILWAY_API_URL: 'https://ai-receptionist-ru2r.onrender.com',
+  // Backend URL — Railway production server
+  RAILWAY_API_URL: 'https://ai-receptionist-production-8a2b.up.railway.app',
 
   // ⚠️ SECURITY POSTURE WARNING (Client Handover Note)
   // This frontend connects directly to Supabase using the public anon key.
