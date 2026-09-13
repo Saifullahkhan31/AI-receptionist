@@ -102,7 +102,7 @@ def _get_service():
 # Public: get free slots (45-minute intervals)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_open_slots(days_ahead: int = 7, max_slots: int = 12) -> list[str]:
+def get_open_slots(days_ahead: int = 7, max_slots: int = 40) -> list[str]:
     """
     Return up to `max_slots` free 45-minute slots over the next `days_ahead` days
     during clinic hours (6:00 PM – 10:00 PM), Asia/Karachi time.
