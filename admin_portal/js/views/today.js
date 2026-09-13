@@ -573,6 +573,12 @@ const TodayView = (() => {
     }
   }
 
+  // ── "This Week" shortcut button ─────────────────
+  const viewWeekBtn = document.getElementById('view-week-btn');
+  if (viewWeekBtn) {
+    viewWeekBtn.addEventListener('click', () => Router.switchView('schedule'));
+  }
+
   // ── Listen for view switch ──────────────────────
   window.addEventListener('viewchange', e => {
     if (e.detail.view === 'today') load();

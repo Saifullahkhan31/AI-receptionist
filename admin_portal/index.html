@@ -228,14 +228,30 @@
           <!-- Appointment List -->
           <div class="appointments-panel">
             <div class="appointments-heading">
-              <h2>Appointments <span id="appointment-count">0</span></h2>
-              <div class="doctor-filters">
-                <button class="doctor-filter active" data-doctor="all">All Doctors</button>
-                <button class="doctor-filter" data-doctor="mustafa">Dr. Mustafa</button>
-                <button class="doctor-filter" data-doctor="qasim">Dr. Qasim</button>
+              <!-- Top row: title + This Week shortcut -->
+              <div class="appointments-heading-top">
+                <h2>Appointments <span id="appointment-count">0</span></h2>
+                <button class="view-week-btn" id="view-week-btn" aria-label="View this week's appointments">
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                    <rect x="2.5" y="4.5" width="15" height="13" rx="2"/>
+                    <line x1="2.5" y1="8.5" x2="17.5" y2="8.5"/>
+                    <line x1="7" y1="2.5" x2="7" y2="6.5"/>
+                    <line x1="13" y1="2.5" x2="13" y2="6.5"/>
+                  </svg>
+                  This Week
+                </button>
               </div>
-              <div class="appointment-filters"><button class="active" data-filter="all">All</button><button data-filter="show">Arrived</button><button data-filter="pending">Scheduled</button><button data-filter="no-show">Did Not Arrive</button></div>
+              <!-- Bottom row: doctor filters + status filters -->
+              <div class="appointments-heading-bottom">
+                <div class="doctor-filters">
+                  <button class="doctor-filter active" data-doctor="all">All Doctors</button>
+                  <button class="doctor-filter" data-doctor="mustafa">Dr. Mustafa</button>
+                  <button class="doctor-filter" data-doctor="qasim">Dr. Qasim</button>
+                </div>
+                <div class="appointment-filters"><button class="active" data-filter="all">All</button><button data-filter="show">Arrived</button><button data-filter="pending">Scheduled</button><button data-filter="no-show">Did Not Arrive</button></div>
+              </div>
             </div>
+
             <div class="appointment-table-head">
               <span>Time</span><span>Patient</span><span>Status</span><span>Actions</span>
             </div>
@@ -295,6 +311,29 @@
             </section>
           </div>
           <button class="patients-mobile-add" id="patients-mobile-add"><svg class="patients-action-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="6" r="3"/><path d="M2.5 16c0-3 2.5-5 5.5-5 1.4 0 2.7.5 3.7 1.2"/><path d="M15 11v6M12 14h6"/></svg> Add Patient</button>
+        </section>
+
+        <!-- SCHEDULE VIEW -->
+        <section id="view-schedule" class="app-view" hidden>
+          <div class="schedule-header">
+            <div class="schedule-title-row">
+              <div>
+                <h1>This Week</h1>
+                <p class="schedule-subtitle">Next 7 days — <span id="schedule-range"></span></p>
+              </div>
+              <button class="back-to-today-btn" id="back-to-today-btn">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M12 5l-7 5 7 5"/>
+                </svg>
+                Back to Today
+              </button>
+            </div>
+            <!-- 7-day strip -->
+            <div class="schedule-day-strip" id="schedule-day-strip"></div>
+          </div>
+          <div class="schedule-body" id="schedule-body">
+            <!-- Populated by schedule.js -->
+          </div>
         </section>
 
         <!-- SETTINGS VIEW -->
@@ -496,6 +535,7 @@
   <script src="js/views/today.js"></script>
   <script src="js/views/patients.js"></script>
   <script src="js/views/settings.js"></script>
+  <script src="js/views/schedule.js"></script>
   <script src="js/app.js"></script>
 
 </body>

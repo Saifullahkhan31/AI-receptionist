@@ -50,6 +50,18 @@ const API = (() => {
       return request(`/appointments?appointment_date=eq.${today}&order=appointment_time.asc.nullslast`);
     },
 
+    async getWeekAppointments() {
+      const today = localDateISO();
+      const nextWeek = new Date();
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      const end = localDateISO(nextWeek);
+      return request(
+        `/appointments?appointment_date=gte.${today}&appointment_date=lte.${end}` +
+        `&status=neq.Appt Cancel/Postpone` +
+        `&order=appointment_date.asc,appointment_time.asc.nullslast`
+      );
+    },
+
     async createAppointment(data) {
       return request('/appointments', {
         method: 'POST',
