@@ -230,19 +230,22 @@ def create_booking(
                 "dateTime": end_local.isoformat(),
                 "timeZone": TIMEZONE_STR,
             },
-            "attendees": attendees,
         }
+        
+        if attendees:
+            event["attendees"] = attendees
 
-        created = service.events().insert(
-            calendarId=CALENDAR_ID, 
-            body=event, 
-            sendUpdates="all"
-        ).execute()
+        kwargs = {"calendarId": CALENDAR_ID, "body": event}
+        if attendees:
+            kwargs["sendUpdates"] = "all"
+
+        created = service.events().insert(**kwargs).execute()
         print(f"[GCal] Event created (45 min): {created.get('htmlLink')}")
         return True
 
     except HttpError as e:
-        print(f"[GCal] create_booking HTTP error: {e}")
+        print(f"[GCal] create_booking HTTP error: {e.status_code} - {e.reason}")
+        print(f"[GCal] Error details: {e.error_details}")
         return False
     except Exception as e:
         print(f"[GCal] create_booking failed: {e}")
