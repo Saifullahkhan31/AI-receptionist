@@ -150,10 +150,12 @@ def send_doctor_notification(booking: dict) -> bool:
         return True
     NOTIFIED_BOOKINGS.add(dedup_key)
 
-    doctor_id = booking.get("doctor_id", "default")
-    doctor_info = DOCTOR_REGISTRY.get(doctor_id, DOCTOR_REGISTRY["default"])
-    doctor_name = doctor_info["name"]
-    doctor_phone = doctor_info["whatsapp_number"]
+    # Collect both doctors' WhatsApp numbers, removing duplicates in case they share a default
+    phones_to_notify = list(set([
+        DOCTOR_REGISTRY.get("dr_mustafa", {}).get("whatsapp_number"),
+        DOCTOR_REGISTRY.get("dr_qasim", {}).get("whatsapp_number")
+    ]))
+    phones_to_notify = [p for p in phones_to_notify if p]
 
     token = os.getenv("META_ACCESS_TOKEN")
     phone_id = os.getenv("META_PHONE_NUMBER_ID")
@@ -172,30 +174,34 @@ def send_doctor_notification(booking: dict) -> bool:
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
-    payload = {
-        "messaging_product": "whatsapp",
-        "recipient_type": "individual",
-        "to": doctor_phone,
-        "type": "text",
-        "text": {"body": message}
-    }
 
-    print(f"\n[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] Triggered send_doctor_notification for {patient_name} ({patient_phone}) at {date_str} {day_str} {formatted_time}")
-    print(f"[Doctor Notification] Outgoing Payload:\n{json.dumps(payload, indent=2)}")
+    success = True
+    for phone in phones_to_notify:
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phone,
+            "type": "text",
+            "text": {"body": message}
+        }
 
-    try:
-        url = f"https://graph.facebook.com/v19.0/{phone_id}/messages"
-        resp = httpx.post(url, headers=headers, json=payload, timeout=12.0)
-        if resp.status_code == 200:
-            msg_id = resp.json().get("messages", [{}])[0].get("id", "OK")
-            print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ✅ Sent single alert to {doctor_phone} (Message ID: {msg_id})")
-            return True
-        else:
-            print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ❌ Meta API Error {resp.status_code}: {resp.text}")
-            return False
-    except Exception as e:
-        print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ❌ Failed: {e}")
-        return False
+        print(f"\n[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] Triggered send_doctor_notification for {patient_name} ({patient_phone}) to {phone}")
+        print(f"[Doctor Notification] Outgoing Payload:\n{json.dumps(payload, indent=2)}")
+
+        try:
+            url = f"https://graph.facebook.com/v19.0/{phone_id}/messages"
+            resp = httpx.post(url, headers=headers, json=payload, timeout=12.0)
+            if resp.status_code == 200:
+                msg_id = resp.json().get("messages", [{}])[0].get("id", "OK")
+                print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ✅ Sent alert to {phone} (Message ID: {msg_id})")
+            else:
+                print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ❌ Meta API Error {resp.status_code} for {phone}: {resp.text}")
+                success = False
+        except Exception as e:
+            print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ❌ Failed for {phone}: {e}")
+            success = False
+
+    return success
 
 
 def notify_doctor(patient_name: str, patient_phone: str, date_str: str, time_str: str):

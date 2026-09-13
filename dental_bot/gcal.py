@@ -209,6 +209,11 @@ def create_booking(
         ).replace(tzinfo=TZ)
         end_local = start_local + timedelta(minutes=SLOT_DURATION_MINUTES)
 
+        attendees = []
+        for email in [os.getenv("DR_MUSTAFA_GMAIL"), os.getenv("DR_QASIM_GMAIL")]:
+            if email:
+                attendees.append({"email": email.strip()})
+
         event = {
             "summary": f"{procedure} — {patient_name}",
             "description": (
@@ -225,9 +230,14 @@ def create_booking(
                 "dateTime": end_local.isoformat(),
                 "timeZone": TIMEZONE_STR,
             },
+            "attendees": attendees,
         }
 
-        created = service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
+        created = service.events().insert(
+            calendarId=CALENDAR_ID, 
+            body=event, 
+            sendUpdates="all"
+        ).execute()
         print(f"[GCal] Event created (45 min): {created.get('htmlLink')}")
         return True
 
