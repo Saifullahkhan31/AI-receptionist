@@ -177,7 +177,33 @@ def send_doctor_notification(booking: dict) -> bool:
 
     success = True
     for phone in phones_to_notify:
-        payload = {
+        # 1. Primary: Send via Meta Approved Template (doctor_appointment_alert) for 24/7 delivery outside 24h window
+        template_payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phone,
+            "type": "template",
+            "template": {
+                "name": "doctor_appointment_alert",
+                "language": {"code": "en"},
+                "components": [
+                    {
+                        "type": "body",
+                        "parameters": [
+                            {"type": "text", "text": patient_name},
+                            {"type": "text", "text": patient_phone},
+                            {"type": "text", "text": date_str},
+                            {"type": "text", "text": day_str or "N/A"},
+                            {"type": "text", "text": formatted_time},
+                            {"type": "text", "text": procedure}
+                        ]
+                    }
+                ]
+            }
+        }
+
+        # 2. Fallback: Free-form text message
+        text_payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
             "to": phone,
@@ -186,17 +212,24 @@ def send_doctor_notification(booking: dict) -> bool:
         }
 
         print(f"\n[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] Triggered send_doctor_notification for {patient_name} ({patient_phone}) to {phone}")
-        print(f"[Doctor Notification] Outgoing Payload:\n{json.dumps(payload, indent=2)}")
 
         try:
             url = f"https://graph.facebook.com/v19.0/{phone_id}/messages"
-            resp = httpx.post(url, headers=headers, json=payload, timeout=12.0)
+            # Try Template first
+            resp = httpx.post(url, headers=headers, json=template_payload, timeout=12.0)
             if resp.status_code == 200:
                 msg_id = resp.json().get("messages", [{}])[0].get("id", "OK")
-                print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ✅ Sent alert to {phone} (Message ID: {msg_id})")
+                print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ✅ Sent template alert (doctor_appointment_alert) to {phone} (Message ID: {msg_id})")
             else:
-                print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ❌ Meta API Error {resp.status_code} for {phone}: {resp.text}")
-                success = False
+                print(f"[Doctor Notification] Template payload warning {resp.status_code}: {resp.text}. Falling back to text payload...")
+                # Fallback to free-form text payload
+                resp2 = httpx.post(url, headers=headers, json=text_payload, timeout=12.0)
+                if resp2.status_code == 200:
+                    msg_id = resp2.json().get("messages", [{}])[0].get("id", "OK")
+                    print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ✅ Sent text alert to {phone} (Message ID: {msg_id})")
+                else:
+                    print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ❌ Meta API Error {resp2.status_code} for {phone}: {resp2.text}")
+                    success = False
         except Exception as e:
             print(f"[Doctor Notification] [{timestamp}] [Booking ID: {appointment_id}] ❌ Failed for {phone}: {e}")
             success = False
@@ -359,18 +392,26 @@ BEHAVIOR RULES (STRICTLY FOLLOW THESE)
    (If asked in Urdu/Roman Urdu: "Yeh mere dairey se bahar hai — main sirf clinic, hamare doctors, appointments aur daanton ki dekhbhal se mutalliq sawalat ke jawabat de sakti hoon.")
    Do NOT attempt to answer or give any part of an off-topic answer before declining.
 
-4. BOOKING FLOW  :
-   Step 1 → Ask what procedure/issue the patient needs help with.
-   Step 2 → Share available 45-minute slots (listed above).
-   Step 3 → Ask the patient to confirm a specific slot.
-   Step 4 → Confirm the booking warmly.
+4. BOOKING FLOW & MANDATORY PATIENT SCREENING:
+   Step 1 → MANDATORY SCREENING QUESTION: EVERY TIME a patient asks to book an appointment (whether new or returning), you MUST ask:
+            "Kya aap pehle Centre of Modern Dentistry aa chuke hain (Dr. Mustafa ya Dr. Qasim se check-up karwaya hai) ya aap pehli baar aa rahe hain?"
+   Step 2 → IF NEW PATIENT (pehli baar aa rahe hain):
+            Do NOT assign or restrict to a single doctor. Inform them warmly: "Zabardast! Aap clinic mein kisi bhi available doctor (Dr. Mustafa ya Dr. Qasim) se consultation / check-up karwa sakte hain."
+            (Both doctors will receive the instant notification for new patient bookings so whichever doctor is available at that time can see the patient).
+   Step 3 → IF RETURNING PATIENT or HAS SPECIFIC DOCTOR PREFERENCE:
+            Ask which doctor they prefer to see ("Dr. Mustafa ya Dr. Qasim?") or confirm their previous doctor.
+   Step 4 → PROCEDURE: Ask what dental issue or procedure they need help with.
+   Step 5 → SLOTS: Share available 45-minute slots across the week (listed above).
+   Step 6 → CONFIRMATION: Confirm the booking warmly.
    → Once confirmed, add the hidden BOOK tag (see below). Never show the tag.
 
 5. RESCHEDULING  : Ask which appointment they want to change, cancel the old one
                    (CANCEL tag), then help them pick a new slot (BOOK tag).
 
-6. NEW PATIENTS  : If no patient record exists, warmly introduce yourself, ask for
-                   their name, then proceed with booking.
+6. NEW PATIENTS & SCREENING:
+   When greeting any patient asking to book an appointment, warmly introduce yourself, ask their name if unknown, and perform the mandatory screening question:
+   "Kya aap pehle Centre of Modern Dentistry aa chuke hain (Dr. Mustafa ya Dr. Qasim se check-up karwaya hai) ya aap pehli baar aa rahe hain?"
+   If they are new, notify both doctors without locking to one specific doctor.
 
 7. PROCEDURE INFO: If a patient asks about a procedure or cost, give a brief
                    friendly summary using the procedure list above.
@@ -387,6 +428,12 @@ BEHAVIOR RULES (STRICTLY FOLLOW THESE)
      check UPCOMING APPOINTMENTS under PATIENT CONTEXT above.
    - If an appointment is listed, reply warmly confirming their exact Date, Day, Time, and Procedure.
    - If no active appointment is listed, politely inform them that no upcoming appointment is found on record under their number and offer to help them book one.
+
+11. SLOT AVAILABILITY SHARING (FULL WEEK COVERAGE):
+   - When a patient asks about available days or slots for the week (e.g. "kis kis din aa sakta hoon?", "Wednesday/Thursday/Friday slots hain?"),
+     do NOT restrict your response to only 1–2 days.
+   - Check AVAILABLE APPOINTMENT SLOTS THIS WEEK list above.
+   - Tell the patient clearly that slots are available Monday through Saturday between 6:00 PM and 9:45 PM (e.g. "Ji bilkul! Monday se Saturday tak tamaam din shaam 6:00 PM se 9:45 PM tak slots available hain — Monday, Tuesday, Wednesday, Thursday, Friday, aur Saturday. Aap kis din aur kis time aana chahenge?").
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SYSTEM TAGS (HIDDEN — NEVER SHOW TO PATIENT)
