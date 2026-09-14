@@ -334,9 +334,10 @@ Doctors        : We have two senior, highly qualified dental doctors at the clin
 Working Hours  : Monday to Saturday, 6:00 PM – 10:00 PM (45-minute slots: 6:00–6:45 PM, 6:45–7:30 PM, 7:30–8:15 PM, 8:15–9:00 PM, 9:00–9:45 PM)
 Off Days       : Sunday (closed)
 Location       : Grey Skyline, Block 13, Jauhar Chowrangi Road, Gulistan-e-Johar, Karachi (786 Medical Store se jo andar road ja rahi hai, us road par seedha andar Hussaini Blood Bank hai, wahan hi clinic hai). Google Maps: https://maps.app.goo.gl/7NfZMQEBh1HTo5bw8
-Language       : Respond in the same language the patient uses.
-                 If they write in Urdu (Roman or script), reply in Urdu.
-                 If English, reply in English.
+Language       : STRICT RULE — NEVER USE HINDI DEVANAGARI SCRIPT (e.g. "हमारे").
+                 - If the patient speaks or writes in Urdu / Roman Urdu, respond ONLY in ROMAN URDU (using English/Latin letters, e.g. "Hamare senior doctors Dr. Mustafa aur Dr. Qasim...").
+                 - If English, reply in English.
+                 - ABSOLUTELY NO HINDI SCRIPT (DEVANAGARI) IS ALLOWED AT ANY TIME.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DENTAL SERVICES & PROCEDURES OFFERED
@@ -433,7 +434,7 @@ BEHAVIOR RULES (STRICTLY FOLLOW THESE)
                    them. Say "This sounds urgent — we can see you today or tomorrow.
                    Which slot works for you?" and list same-day slots first.
 
-9. LANGUAGE      : Match the patient's language at all times. If they switch, you switch.
+9. LANGUAGE      : Write in ROMAN URDU (English letters) for all Urdu conversations. NEVER output Hindi script (Devanagari like "हमारे"). If the patient switches to English, reply in English.
 
 10. APPOINTMENT INQUIRIES:
    - If a patient asks about their booking or appointment (e.g. "When is my appointment?", "Do I have a booking today?", "Check my appointment"),
@@ -446,6 +447,12 @@ BEHAVIOR RULES (STRICTLY FOLLOW THESE)
      do NOT restrict your response to only 1–2 days.
    - Check AVAILABLE APPOINTMENT SLOTS THIS WEEK list above.
    - Tell the patient clearly that slots are available Monday through Saturday between 6:00 PM and 9:45 PM (e.g. "Ji bilkul! Monday se Saturday tak tamaam din shaam 6:00 PM se 9:45 PM tak slots available hain — Monday, Tuesday, Wednesday, Thursday, Friday, aur Saturday. Aap kis din aur kis time aana chahenge?").
+
+12. PATIENT PRIVACY & CONCISE POINT-TO-POINT RESPONSES:
+   - If a patient asks about other patients' details, names, or appointments, refuse directly for privacy reasons without adding extra fluff or unprompted clinic process explanations (do NOT explain 45-min slot management or rush policies unless asked).
+     Use this exact friendly & polite response:
+     "Hamare paas patient privacy ki wajah se kisi ki personal details share nahi ki jaati, sorry for that. 😊 Agar aap apne liye appointment book karwana chahte hain ya appointment/consultation se related koi sawal hai toh main zarur aap ki rehnumai kar sakti hoon!"
+   - Always keep responses concise, direct, and point-to-point. Avoid adding extra unrequested explanations.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SYSTEM TAGS (HIDDEN — NEVER SHOW TO PATIENT)
@@ -464,11 +471,44 @@ at the very end of your message. Never explain or mention them to the patient.""
 
 
 GEMINI_MODELS = [
+    "gemini-2.5-flash",
     "gemini-3.6-flash",
     "gemini-3.7-flash",
     "gemini-2.5-flash-lite",
     "gemini-flash-latest"
 ]
+
+def sanitize_conversation_history(history: list) -> list:
+    """
+    Sanitizes conversation history for Gemini API:
+    1. Ensures roles alternate strictly: 'user' -> 'model' -> 'user' -> 'model'.
+    2. Merges consecutive messages from the same role into a single message.
+    3. Removes any empty messages.
+    4. Ensures the history starts with a 'user' message.
+    """
+    if not history:
+        return []
+
+    sanitized = []
+    for turn in history:
+        raw_role = turn.get("role", "user")
+        role = "user" if raw_role == "user" else "model"
+        content = (turn.get("content") or "").strip()
+        if not content:
+            continue
+
+        if sanitized and sanitized[-1]["role"] == role:
+            # Merge consecutive messages of the same role
+            sanitized[-1]["content"] += "\n" + content
+        else:
+            sanitized.append({"role": role, "content": content})
+
+    # Ensure history starts with 'user'
+    while sanitized and sanitized[0]["role"] != "user":
+        sanitized.pop(0)
+
+    return sanitized
+
 
 def get_chat_completion(system_prompt: str, conversation_history: list) -> str:
     """Generate response using Google Gemini API exclusively."""
@@ -476,9 +516,12 @@ def get_chat_completion(system_prompt: str, conversation_history: list) -> str:
         print("[Gemini] ERROR: GEMINI_API_KEY is not configured.")
         return "Assalam o Alaikum! Our system is currently being updated. A clinic representative will assist you shortly."
 
+    # Strictly sanitize conversation history for Gemini multi-turn format
+    sanitized_history = sanitize_conversation_history(conversation_history)
+
     # Format multi-turn conversation history for Gemini
     contents = []
-    for turn in conversation_history:
+    for turn in sanitized_history:
         role = "user" if turn["role"] == "user" else "model"
         contents.append(types.Content(
             role=role,
@@ -497,7 +540,7 @@ def get_chat_completion(system_prompt: str, conversation_history: list) -> str:
                 contents=contents,
                 config=config
             )
-            if resp.text:
+            if resp and resp.text:
                 return resp.text.strip()
         except Exception as e:
             print(f"[Gemini] Model {g_model} failed: {e}. Trying next Gemini model...")

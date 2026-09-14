@@ -78,10 +78,10 @@ async def transcribe_voice_note(audio_id: str) -> str:
 
         g_client = genai.Client(api_key=gemini_api_key)
         trans_resp = g_client.models.generate_content(
-            model="gemini-3.6-flash",
+            model="gemini-2.5-flash",
             contents=[
                 types.Part.from_bytes(data=audio_bytes, mime_type=clean_mime),
-                "Transcribe this WhatsApp voice message from a patient verbatim. It may be in Urdu, Roman Urdu, or English. Return ONLY the transcribed text without quotes or explanations."
+                "Transcribe this WhatsApp voice message from a patient verbatim. If the spoken language is Urdu or Hindi, transcribe it in ROMAN URDU (using English/Latin alphabet, e.g. 'Mera dant me dard hai'). If English, transcribe in English. NEVER output Hindi script (Devanagari like 'हमारे'). Return ONLY the transcribed text without quotes or explanations."
             ]
         )
         transcribed = trans_resp.text.strip() if trans_resp and trans_resp.text else ""
@@ -97,20 +97,55 @@ async def transcribe_voice_note(audio_id: str) -> str:
 # Receive incoming messages  (POST)
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def process_message_background(msg_id: str, sender_phone: str, text: str, sender_name: str):
-    """Background task to handle AI processing and WhatsApp reply."""
-    print(f"[WhatsApp] IN {sender_phone}: {text}")
+# Per-phone asyncio Locks to serialize incoming messages for the same patient
+PHONE_LOCKS: dict[str, asyncio.Lock] = {}
 
-    # Process conversation through Gemini AI logic in threadpool
-    reply_text = await asyncio.to_thread(handle_message, sender_phone, text, sender_name)
+def get_phone_lock(phone: str) -> asyncio.Lock:
+    if phone not in PHONE_LOCKS:
+        PHONE_LOCKS[phone] = asyncio.Lock()
+    return PHONE_LOCKS[phone]
 
-    await send_whatsapp_message(sender_phone, reply_text)
-    print(f"[WhatsApp] OUT {sender_phone}: {reply_text}")
+
+async def process_message_background(
+    msg_id: str,
+    sender_phone: str,
+    sender_name: str,
+    msg_type: str,
+    text_body: str,
+    audio_id: str | None,
+    loc_info: str | None
+):
+    """Background task to handle voice transcription, AI processing, and WhatsApp reply safely."""
+    lock = get_phone_lock(sender_phone)
+    async with lock:
+        text = ""
+
+        if msg_type == "text":
+            text = text_body.strip()
+        elif msg_type == "audio" and audio_id:
+            print(f"[WhatsApp] Processing incoming voice note in background for {sender_phone} (id: {audio_id})")
+            text = await transcribe_voice_note(audio_id)
+        elif msg_type == "location" and loc_info:
+            text = f"[Patient shared location: {loc_info}. Please guide them with clinic address and directions]"
+
+        if not text:
+            print(f"[WhatsApp] Empty message text after processing for {sender_phone}. Skipping.")
+            return
+
+        print(f"[WhatsApp] IN {sender_phone}: {text}")
+
+        # Process conversation through Gemini AI logic in threadpool
+        reply_text = await asyncio.to_thread(handle_message, sender_phone, text, sender_name)
+
+        if reply_text:
+            await send_whatsapp_message(sender_phone, reply_text)
+            print(f"[WhatsApp] OUT {sender_phone}: {reply_text}")
 
 
 async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks) -> Response:
     """
     Meta POSTs here for incoming text, audio voice notes, or location pins.
+    Returns 200 OK immediately (< 10ms) to prevent Meta webhook retries.
     """
     body = await request.json()
     print("--- RAW PAYLOAD ---")
@@ -119,14 +154,13 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks) 
     try:
         value = body["entry"][0]["changes"][0]["value"]
 
-        if "messages" not in value:
+        if "messages" not in value or not value["messages"]:
             return Response(content="ok", status_code=200)
 
         msg          = value["messages"][0]
         msg_id       = msg["id"]
         sender_phone = msg["from"]                        # e.g. "923001234567"
         msg_type     = msg.get("type", "text")
-        text         = ""
 
         # Instantly deduplicate: if Meta sends duplicate webhook retries, drop them immediately
         if msg_id in PROCESSED_MESSAGE_IDS:
@@ -142,28 +176,29 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks) 
         if "contacts" in value and len(value["contacts"]) > 0:
             sender_name = value["contacts"][0].get("profile", {}).get("name", "Unknown Patient")
 
-        # 1. Standard Text Message
-        if msg_type == "text":
-            text = msg.get("text", {}).get("body", "").strip()
+        text_body = ""
+        audio_id = None
+        loc_info = None
 
-        # 2. WhatsApp Voice Note / Audio Message
+        if msg_type == "text":
+            text_body = msg.get("text", {}).get("body", "")
         elif msg_type == "audio":
             audio_id = msg.get("audio", {}).get("id")
-            if audio_id:
-                print(f"[WhatsApp] Incoming voice note from {sender_phone} (id: {audio_id})")
-                text = await transcribe_voice_note(audio_id)
-
-        # 3. Location Pin Message
         elif msg_type == "location":
             loc = msg.get("location", {})
-            loc_name = loc.get("name") or loc.get("address") or f"coordinates ({loc.get('latitude')}, {loc.get('longitude')})"
-            text = f"[Patient shared location: {loc_name}. Please guide them with clinic address and directions]"
+            loc_info = loc.get("name") or loc.get("address") or f"coordinates ({loc.get('latitude')}, {loc.get('longitude')})"
 
-        if not text:
-            return Response(content="ok", status_code=200)
-
-        # Process in background and return 200 OK immediately
-        background_tasks.add_task(process_message_background, msg_id, sender_phone, text, sender_name)
+        # Schedule processing in background and return 200 OK IMMEDIATELY to Meta
+        background_tasks.add_task(
+            process_message_background,
+            msg_id,
+            sender_phone,
+            sender_name,
+            msg_type,
+            text_body,
+            audio_id,
+            loc_info
+        )
 
     except (KeyError, IndexError, TypeError) as e:
         print(f"[Webhook] Unexpected payload shape: {e}")
