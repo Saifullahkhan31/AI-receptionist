@@ -16,6 +16,8 @@ const ScheduleView = (() => {
   // ── State ───────────────────────────────────────
   let allAppointments = [];
   let activeDayIdx    = 0; // index into the 7-day strip
+  let activeCard      = null;
+  let currentDays     = [];
 
   // ── Helpers ─────────────────────────────────────
   const escape = v => String(v ?? '').replace(/[&<>"']/g, c =>
@@ -141,7 +143,7 @@ const ScheduleView = (() => {
       } else {
         hasAny = true;
         dayAppts.forEach(appt => {
-          section.appendChild(renderApptRow(appt));
+          section.appendChild(renderCard(appt));
         });
       }
 
@@ -159,29 +161,94 @@ const ScheduleView = (() => {
     }
   }
 
-  // ── Single appointment row ───────────────────────
-  function renderApptRow(appt) {
-    const badge  = badgeClass(appt.status);
-    const label  = badgeLabel(appt.status);
-    const time   = formatTime(appt.appointment_time);
+  // ── Toggle card expand ──────────────────────────
+  function toggleCard(id) {
+    activeCard = activeCard === id ? null : id;
+    renderBody(currentDays);
+  }
+
+  // ── Single appointment card (like Today's) ────────
+  function renderCard(appt) {
+    const t = formatTime(appt.appointment_time);
+    const badge = badgeClass(appt.status);
+    const label = badgeLabel(appt.status);
+    const isOpen = activeCard === appt.id;
     const initials = (appt.patient_name || 'P').split(/\s+/).map(n => n[0]).join('').slice(0, 2).toUpperCase();
     const avatarColors = ['blue', 'purple', 'coral', 'green', 'orange', 'cyan'];
-    const avatarColor  = avatarColors[(appt.patient_name || '').length % avatarColors.length];
+    const avatarColor = avatarColors[(appt.patient_name || '').length % avatarColors.length];
 
-    const row = document.createElement('div');
-    row.className = 'schedule-appt-row';
-    row.innerHTML = `
-      <div class="schedule-time">${escape(time)}</div>
-      <div class="patient-group">
-        <div class="patient-avatar patient-avatar--${avatarColor}">${escape(initials)}</div>
-        <div class="appt-info">
-          <div class="appt-name">${escape(appt.patient_name || 'Unknown Patient')}</div>
-          <div class="appt-treatment">${escape(appt.treatment_planned || 'No treatment specified')}</div>
+    const card = document.createElement('div');
+    card.className = 'appt-card';
+    card.dataset.id = appt.id;
+
+    card.innerHTML = `
+      <div class="appt-card-main">
+        <div class="appt-time-col">
+          <div class="appt-time">${escape(t.split(' ')[0])}</div>
+          <div class="appt-time-ampm">${escape(t.split(' ')[1] || '')}</div>
+        </div>
+        <div class="patient-group">
+          <div class="patient-avatar patient-avatar--${avatarColor}">${escape(initials)}</div>
+          <div class="appt-info">
+            <div class="appt-name">${escape(appt.patient_name)}</div>
+            <div class="appt-treatment">${escape(appt.treatment_planned || 'No treatment specified')}</div>
+          </div>
+        </div>
+        <button class="status-badge ${badge}" data-appt-id="${escape(appt.id)}" aria-label="Change status">
+          ${label}
+        </button>
+        <div class="appt-actions">
+          <button class="appt-view" aria-label="View appointment"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2"/></svg><span>View</span></button>
+          <button class="appt-more" aria-label="More appointment actions">⋮</button>
         </div>
       </div>
-      <span class="status-badge ${badge}">${label}</span>
+      ${isOpen ? renderDetail(appt) : ''}
     `;
-    return row;
+
+    // Tap card body → expand detail
+    card.querySelector('.appt-card-main').addEventListener('click', e => {
+      if (e.target.closest('.status-badge')) return;
+      toggleCard(appt.id);
+    });
+
+    // Tap status badge → open status picker
+    card.querySelector('.status-badge').addEventListener('click', e => {
+      e.stopPropagation();
+      if (window.TodayView && TodayView.openStatusPicker) {
+        TodayView.openStatusPicker(appt);
+      }
+    });
+
+    card.querySelector('.appt-view').addEventListener('click', e => {
+      e.stopPropagation();
+      if (window.TodayView && TodayView.openAppointmentView) {
+        TodayView.openAppointmentView(appt);
+      }
+    });
+
+    card.querySelector('.appt-more').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleCard(appt.id);
+    });
+
+    return card;
+  }
+
+  function renderDetail(appt) {
+    const phone = appt.contact_number;
+    return `
+      <div class="appt-detail" data-detail-id="${escape(appt.id)}">
+        ${phone ? `
+          <div class="detail-phone">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.38 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.82a16 16 0 0 0 6.27 6.27l1.18-1.18a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <a href="tel:${escape(phone)}">${escape(phone)}</a>
+          </div>` : '<div class="detail-phone" style="color:var(--text-muted)">No phone number</div>'}
+        ${appt.notes ? `<div class="detail-notes">${escape(appt.notes)}</div>` : ''}
+        <div class="detail-actions">
+          <button class="btn-detail" data-delete-appt="${escape(appt.id)}">Delete</button>
+        </div>
+      </div>
+    `;
   }
 
   // ── Main load ────────────────────────────────────
@@ -201,6 +268,7 @@ const ScheduleView = (() => {
     }
 
     const days = buildDays();
+    currentDays = days;
 
     // Set range label
     if (rangeEl) {
@@ -241,10 +309,29 @@ const ScheduleView = (() => {
     backBtn.addEventListener('click', () => Router.switchView('today'));
   }
 
+  // ── Delete appointment ──────────────────────────
+  async function deleteAppt(id) {
+    if (!confirm('Delete this appointment?')) return;
+    allAppointments = allAppointments.filter(a => a.id !== id);
+    renderBody(currentDays);
+    try {
+      await API.deleteAppointment(id);
+      if (window.TodayView) TodayView.reload();
+    } catch (err) {
+      console.error('[SCHEDULE] Delete failed:', err);
+      await load();
+    }
+  }
+
+  bodyEl.addEventListener('click', e => {
+    const btn = e.target.closest('[data-delete-appt]');
+    if (btn) deleteAppt(btn.dataset.deleteAppt);
+  });
+
   // ── Listen for view switch ───────────────────────
   window.addEventListener('viewchange', e => {
     if (e.detail.view === 'schedule') load();
   });
 
-  return { load };
+  return { load, reload: load };
 })();

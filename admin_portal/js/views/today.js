@@ -357,7 +357,15 @@ const TodayView = (() => {
     viewStatus.textContent = badgeLabel(appt.status);
     viewTreatment.textContent = appt.treatment_planned || 'No treatment specified';
     viewPhone.textContent = appt.contact_number || 'No phone number';
-    viewDoctor.textContent = requestedDoctor(appt);
+    
+    const docName = requestedDoctor(appt);
+    if (docName && docName !== 'Not recorded') {
+      viewDoctor.textContent = docName;
+      viewDoctor.parentElement.hidden = false;
+    } else {
+      viewDoctor.parentElement.hidden = true;
+    }
+
     viewBooked.textContent = formatBookedAt(appt.created_at);
     if (appt.notes) {
       viewNotes.hidden = false;
@@ -404,6 +412,9 @@ const TodayView = (() => {
     // Save to Supabase in background
     try {
       await API.updateAppointmentStatus(id, newStatus);
+      if (typeof ScheduleView !== 'undefined' && document.getElementById('view-schedule').classList.contains('active-view')) {
+        ScheduleView.reload();
+      }
     } catch (err) {
       console.error('[TODAY] Status update failed:', err);
       // Revert on failure
@@ -593,6 +604,8 @@ const TodayView = (() => {
     },
     reload: load,
     deleteAppt,
+    openAppointmentView,
+    openStatusPicker
   };
 
 })();
