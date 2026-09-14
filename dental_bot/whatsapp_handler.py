@@ -41,13 +41,20 @@ PROCESSED_MESSAGE_IDS = set()
 # Voice Note (Audio) Transcription via Gemini
 # ─────────────────────────────────────────────────────────────────────────────
 
+VOICE_GEMINI_MODELS = [
+    "gemini-3.6-flash",
+    "gemini-3.7-flash",
+    "gemini-3.8-flash",
+    "gemini-flash-latest"
+]
+
 async def transcribe_voice_note(audio_id: str) -> str:
     """Downloads an audio voice note from Meta and transcribes it using Google Gemini."""
     token = os.getenv("META_ACCESS_TOKEN")
     headers = {"Authorization": f"Bearer {token}"}
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             # 1. Fetch media URL from Meta Graph API
             info_url = f"https://graph.facebook.com/v19.0/{audio_id}"
             resp = await client.get(info_url, headers=headers)
@@ -60,14 +67,14 @@ async def transcribe_voice_note(audio_id: str) -> str:
             raw_mime = media_data.get("mime_type", "audio/ogg")
             clean_mime = raw_mime.split(";")[0].strip()
 
-            # 2. Download audio bytes
+            # 2. Download audio bytes (follow_redirects handles Meta's 302 to CDN)
             audio_resp = await client.get(download_url, headers=headers)
             if audio_resp.status_code != 200:
                 print(f"[VoiceNote] Failed to download audio: {audio_resp.status_code}")
                 return ""
             audio_bytes = audio_resp.content
 
-        # 3. Transcribe audio with Gemini
+        # 3. Transcribe audio with Gemini (with resilient model fallbacks)
         from google import genai
         from google.genai import types
 
@@ -77,16 +84,32 @@ async def transcribe_voice_note(audio_id: str) -> str:
             return ""
 
         g_client = genai.Client(api_key=gemini_api_key)
-        trans_resp = g_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                types.Part.from_bytes(data=audio_bytes, mime_type=clean_mime),
-                "Transcribe this WhatsApp voice message from a patient verbatim. If the spoken language is Urdu or Hindi, transcribe it in ROMAN URDU (using English/Latin alphabet, e.g. 'Mera dant me dard hai'). If English, transcribe in English. NEVER output Hindi script (Devanagari like 'हमारे'). Return ONLY the transcribed text without quotes or explanations."
-            ]
+
+        prompt = (
+            "Transcribe this WhatsApp voice message from a patient verbatim. "
+            "If the spoken language is Urdu or Hindi, transcribe it in ROMAN URDU (using English/Latin alphabet, e.g. 'Mera dant me dard hai'). "
+            "If English, transcribe in English. NEVER output Hindi script (Devanagari like 'हमारे'). "
+            "Return ONLY the transcribed text without quotes or explanations."
         )
-        transcribed = trans_resp.text.strip() if trans_resp and trans_resp.text else ""
-        print(f"[VoiceNote] Transcribed: '{transcribed}'")
-        return transcribed
+
+        for model_name in VOICE_GEMINI_MODELS:
+            try:
+                trans_resp = g_client.models.generate_content(
+                    model=model_name,
+                    contents=[
+                        types.Part.from_bytes(data=audio_bytes, mime_type=clean_mime),
+                        prompt
+                    ]
+                )
+                transcribed = trans_resp.text.strip() if trans_resp and trans_resp.text else ""
+                if transcribed:
+                    print(f"[VoiceNote] Transcribed with {model_name}: '{transcribed}'")
+                    return transcribed
+            except Exception as model_err:
+                print(f"[VoiceNote] Model {model_name} failed: {model_err}. Trying next model...")
+
+        print("[VoiceNote] All Gemini transcription models failed.")
+        return ""
 
     except Exception as e:
         print(f"[VoiceNote] Transcription error: {e}")
@@ -122,7 +145,7 @@ async def process_message_background(
 
         if msg_type == "text":
             text = text_body.strip()
-        elif msg_type == "audio" and audio_id:
+        elif msg_type in ("audio", "voice") and audio_id:
             print(f"[WhatsApp] Processing incoming voice note in background for {sender_phone} (id: {audio_id})")
             text = await transcribe_voice_note(audio_id)
         elif msg_type == "location" and loc_info:
@@ -182,8 +205,9 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks) 
 
         if msg_type == "text":
             text_body = msg.get("text", {}).get("body", "")
-        elif msg_type == "audio":
-            audio_id = msg.get("audio", {}).get("id")
+        elif msg_type in ("audio", "voice"):
+            audio_obj = msg.get("audio") or msg.get("voice") or {}
+            audio_id = audio_obj.get("id")
         elif msg_type == "location":
             loc = msg.get("location", {})
             loc_info = loc.get("name") or loc.get("address") or f"coordinates ({loc.get('latitude')}, {loc.get('longitude')})"
