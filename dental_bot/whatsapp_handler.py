@@ -2,7 +2,7 @@ import os
 import asyncio
 import httpx
 from fastapi import Request, Response, BackgroundTasks
-from agent import handle_message
+from agent import handle_message, get_active_gemini_models, mark_model_failed
 
 # NOTE: META_ACCESS_TOKEN is read fresh on every request so .env changes
 # are picked up without restarting the server.
@@ -40,13 +40,6 @@ PROCESSED_MESSAGE_IDS = set()
 # ─────────────────────────────────────────────────────────────────────────────
 # Voice Note (Audio) Transcription via Gemini
 # ─────────────────────────────────────────────────────────────────────────────
-
-VOICE_GEMINI_MODELS = [
-    "gemini-3.6-flash",
-    "gemini-3.7-flash",
-    "gemini-3.8-flash",
-    "gemini-flash-latest"
-]
 
 async def transcribe_voice_note(audio_id: str) -> str:
     """Downloads an audio voice note from Meta and transcribes it using Google Gemini."""
@@ -92,7 +85,9 @@ async def transcribe_voice_note(audio_id: str) -> str:
             "Return ONLY the transcribed text without quotes or explanations."
         )
 
-        for model_name in VOICE_GEMINI_MODELS:
+        models_to_try = get_active_gemini_models(g_client)
+
+        for model_name in models_to_try:
             try:
                 trans_resp = g_client.models.generate_content(
                     model=model_name,
@@ -106,6 +101,9 @@ async def transcribe_voice_note(audio_id: str) -> str:
                     print(f"[VoiceNote] Transcribed with {model_name}: '{transcribed}'")
                     return transcribed
             except Exception as model_err:
+                err_str = str(model_err).lower()
+                if "not found" in err_str or "no longer available" in err_str or "deprecated" in err_str:
+                    mark_model_failed(model_name, permanent=True)
                 print(f"[VoiceNote] Model {model_name} failed: {model_err}. Trying next model...")
 
         print("[VoiceNote] All Gemini transcription models failed.")

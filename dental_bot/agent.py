@@ -1,5 +1,6 @@
 import re
 import os
+import time
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
@@ -551,12 +552,62 @@ CANCELLATION TAG: When a patient cancels or reschedules an appointment, append o
 IMPORTANT: These tags are parsed by the system. They must appear on their own line at the very end of your message. Never show or mention tags to the patient."""
 
 
-GEMINI_MODELS = [
+# ─────────────────────────────────────────────────────────────────────────────
+# Dynamic Gemini Model Pool with Self-Healing Fallback
+# ─────────────────────────────────────────────────────────────────────────────
+
+INITIAL_GEMINI_MODELS = [
     "gemini-3.6-flash",
     "gemini-3.7-flash",
     "gemini-3.8-flash",
     "gemini-flash-latest"
 ]
+
+_ACTIVE_GEMINI_MODELS: list[str] = list(INITIAL_GEMINI_MODELS)
+_RETIRED_GEMINI_MODELS: set[str] = {"gemini-2.5-flash", "gemini-2.5-flash-lite"}
+_LAST_DISCOVERY_TIME: float = time.time()
+
+def get_active_gemini_models(client: genai.Client | None = None) -> list[str]:
+    """
+    Returns a resilient, prioritized list of active Gemini models.
+    Filters out any deprecated/retired models, and dynamically discovers live
+    working models from Google GenAI API if the candidate pool is ever exhausted.
+    """
+    global _ACTIVE_GEMINI_MODELS, _RETIRED_GEMINI_MODELS, _LAST_DISCOVERY_TIME
+
+    candidates = [m for m in _ACTIVE_GEMINI_MODELS if m not in _RETIRED_GEMINI_MODELS]
+
+    # Only query Google API if all current models have been disqualified/retired
+    if not candidates and client:
+        try:
+            print("[Gemini Pool] Candidate pool exhausted. Discovering live models directly from Google GenAI API...")
+            discovered = []
+            for m in client.models.list():
+                m_name = m.name[7:] if m.name.startswith("models/") else m.name
+                lower = m_name.lower()
+                # Pick general flash/pro text/multimodal models, exclude specialized/deprecated
+                if ("flash" in lower or "pro" in lower) and not any(x in lower for x in ["image", "tts", "preview-09", "preview-12", "realtime", "2.5"]):
+                    if m_name not in _RETIRED_GEMINI_MODELS:
+                        discovered.append(m_name)
+            if discovered:
+                discovered.sort(key=lambda x: ("3.8" in x, "3.7" in x, "3.6" in x, "flash" in x), reverse=True)
+                _ACTIVE_GEMINI_MODELS = discovered
+                _LAST_DISCOVERY_TIME = time.time()
+                candidates = [m for m in _ACTIVE_GEMINI_MODELS if m not in _RETIRED_GEMINI_MODELS]
+                print(f"[Gemini Pool] Dynamic self-healing discovered {len(candidates)} active models: {candidates}")
+        except Exception as e:
+            print(f"[Gemini Pool] Dynamic discovery error: {e}")
+
+    return candidates or ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest"]
+
+
+def mark_model_failed(model_name: str, permanent: bool = True) -> None:
+    """Disqualifies a retired or deprecated model so future requests never waste time on it."""
+    global _RETIRED_GEMINI_MODELS
+    if permanent:
+        _RETIRED_GEMINI_MODELS.add(model_name)
+        print(f"[Gemini Pool] Disqualified inactive/retired model: '{model_name}'.")
+
 
 def sanitize_conversation_history(history: list) -> list:
     """
@@ -591,7 +642,7 @@ def sanitize_conversation_history(history: list) -> list:
 
 
 def get_chat_completion(system_prompt: str, conversation_history: list) -> str:
-    """Generate response using Google Gemini API exclusively."""
+    """Generate response using Google Gemini API with self-healing model fallback."""
     if not gemini_client:
         print("[Gemini] ERROR: GEMINI_API_KEY is not configured.")
         return "Assalam o Alaikum! Our system is currently being updated. A clinic representative will assist you shortly."
@@ -613,7 +664,9 @@ def get_chat_completion(system_prompt: str, conversation_history: list) -> str:
         temperature=0.7,
     )
 
-    for g_model in GEMINI_MODELS:
+    models_to_try = get_active_gemini_models(gemini_client)
+
+    for g_model in models_to_try:
         try:
             resp = gemini_client.models.generate_content(
                 model=g_model,
@@ -623,6 +676,9 @@ def get_chat_completion(system_prompt: str, conversation_history: list) -> str:
             if resp and resp.text:
                 return resp.text.strip()
         except Exception as e:
+            err_str = str(e).lower()
+            if "not found" in err_str or "no longer available" in err_str or "deprecated" in err_str:
+                mark_model_failed(g_model, permanent=True)
             print(f"[Gemini] Model {g_model} failed: {e}. Trying next Gemini model...")
 
     return "Assalam o Alaikum! We are currently experiencing a brief technical delay. A clinic representative will assist you shortly."
