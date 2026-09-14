@@ -322,9 +322,15 @@ answering questions about procedures, and providing general clinic information.
 CLINIC INFORMATION & DOCTORS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Clinic Name    : {CLINIC_NAME}
-Doctors        : We have two doctors at the clinic — Dr. Mustafa and Dr. Qasim — both senior, qualified dental doctors.
-                 If a patient asks about the doctors (e.g. "who are the doctors", "which doctor should I see", "tell me about your doctors"),
-                 always respond with: "We have two doctors at the clinic — Dr. Mustafa and Dr. Qasim — both senior, qualified dental doctors."
+Doctors        : We have two senior, highly qualified dental doctors at the clinic:
+                 1. Dr. Mustafa — Qualifications: BDS, RDS, D-Ortho (Orthodontics & Braces Specialist)
+                 2. Dr. Qasim — Qualifications: BDS, RDS, C-Endo, C-Implant (Root Canal & Implants Specialist)
+
+                 If a patient asks about the doctors or their qualifications (e.g. "who are the doctors", "tell me about your doctors", "qualifications kya hain?"),
+                 always share their exact qualifications warmly:
+                 "Hamare clinic mein 2 senior qualified doctors hain:
+                 • Dr. Mustafa — BDS, RDS, D-Ortho
+                 • Dr. Qasim — BDS, RDS, C-Endo, C-Implant"
 Working Hours  : Monday to Saturday, 6:00 PM – 10:00 PM (45-minute slots: 6:00–6:45 PM, 6:45–7:30 PM, 7:30–8:15 PM, 8:15–9:00 PM, 9:00–9:45 PM)
 Off Days       : Sunday (closed)
 Location       : Grey Skyline, Block 13, Jauhar Chowrangi Road, Gulistan-e-Johar, Karachi (786 Medical Store se jo andar road ja rahi hai, us road par seedha andar Hussaini Blood Bank hai, wahan hi clinic hai). Google Maps: https://maps.app.goo.gl/7NfZMQEBh1HTo5bw8
@@ -405,8 +411,14 @@ BEHAVIOR RULES (STRICTLY FOLLOW THESE)
    Step 6 → CONFIRMATION: Confirm the booking warmly.
    → Once confirmed, add the hidden BOOK tag (see below). Never show the tag.
 
-5. RESCHEDULING  : Ask which appointment they want to change, cancel the old one
-                   (CANCEL tag), then help them pick a new slot (BOOK tag).
+5. RESCHEDULING RULE (STRICT):
+   - When a patient asks to reschedule or change their existing appointment date/time:
+     1. Identify their existing appointment date & time from UPCOMING APPOINTMENTS under PATIENT CONTEXT above.
+     2. Help them choose a new available slot.
+     3. When confirming the new slot, output BOTH the CANCEL tag for their old appointment and the BOOK tag for their new appointment at the very end of your message:
+        Example:
+        CANCEL:2026-09-15:18:00
+        BOOK:2026-09-17:18:45:Oral Cleaning (Scaling)
 
 6. NEW PATIENTS & SCREENING:
    When greeting any patient asking to book an appointment, warmly introduce yourself, ask their name if unknown, and perform the mandatory screening question:
@@ -503,6 +515,56 @@ def normalize_phone(p: str) -> str:
     return digits
 
 
+def cancel_patient_appointment(phone: str, date_str: str = None, time_str: str = None) -> list[str]:
+    """
+    Cancels appointment(s) in Google Calendar & updates Supabase status to 'Appt Cancel/Postpone'.
+    If date_str and time_str are provided, cancels that specific slot.
+    If date_str is None, cancels all active upcoming appointments for this phone number (used during rescheduling).
+    Returns list of cancelled date strings.
+    """
+    cancelled_dates = []
+    try:
+        from datetime import date
+        today_str = date.today().isoformat()
+
+        # Query active appointments from Supabase
+        query = supabase.table("appointments").select("*").eq("contact_number", phone).neq("status", "Appt Cancel/Postpone")
+        if date_str:
+            query = query.eq("appointment_date", date_str)
+        else:
+            query = query.gte("appointment_date", today_str)
+
+        res = query.execute()
+        active_appts = res.data or []
+
+        for appt in active_appts:
+            a_id = appt.get("id")
+            a_date = appt.get("appointment_date") or (appt.get("slot_time", "")[:10] if appt.get("slot_time") else "")
+            a_time = appt.get("appointment_time") or (appt.get("slot_time", "")[11:16] if appt.get("slot_time") else "")
+
+            # 1. Update Supabase status
+            if a_id:
+                supabase.table("appointments").update({"status": "Appt Cancel/Postpone"}).eq("id", a_id).execute()
+
+            # 2. Cancel in Google Calendar
+            if a_date and a_time:
+                gcal.cancel_booking(phone=phone, date_str=a_date, time_str=a_time)
+                cancelled_dates.append(f"{a_date} at {format_time_12h(a_time)}")
+
+            print(f"[Cancellation Flow] Cancelled appointment ID {a_id} ({a_date} {a_time}) for {phone}")
+
+        # If specific date/time was given but not found in DB query, still try GCal delete & update
+        if date_str and time_str and not cancelled_dates:
+            gcal.cancel_booking(phone=phone, date_str=date_str, time_str=time_str)
+            supabase.table("appointments").update({"status": "Appt Cancel/Postpone"}).eq("contact_number", phone).eq("appointment_date", date_str).execute()
+            cancelled_dates.append(f"{date_str} at {format_time_12h(time_str)}")
+
+    except Exception as e:
+        print(f"[Cancellation Flow] Error in cancel_patient_appointment for {phone}: {e}")
+
+    return cancelled_dates
+
+
 def handle_message(phone: str, incoming_message: str, patient_name: str = "Unknown Patient") -> str:
     """Main entry point. Takes the sender's phone + message, returns reply text."""
     # ── 1. Check if the sender is a Doctor ──────────────────────────────────
@@ -580,6 +642,28 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
         if slot_key in RECENTLY_BOOKED_SLOTS:
             print(f"[Booking Flow] Slot {date_str} {time_str} already confirmed for {phone}. Skipping duplicate actions.")
         else:
+            # Check if patient already has an active upcoming appointment in Supabase (Rescheduling protection!)
+            from datetime import date
+            today_str = date.today().isoformat()
+            try:
+                existing_active = (
+                    supabase.table("appointments")
+                    .select("*")
+                    .eq("contact_number", phone)
+                    .gte("appointment_date", today_str)
+                    .neq("status", "Appt Cancel/Postpone")
+                    .execute()
+                )
+                old_appts = existing_active.data or []
+                old_date_str = ""
+                if old_appts:
+                    old_date_str = old_appts[0].get("appointment_date", "")
+                    print(f"[Reschedule Flow] Patient {phone} has {len(old_appts)} active appointment(s) (e.g. {old_date_str}). Auto-cancelling old appointment(s) before creating new booking...")
+                    # Cancel old active appointment(s) in Supabase & Google Calendar
+                    cancel_patient_appointment(phone=phone)
+            except Exception as e:
+                print(f"[Reschedule Flow] Check for existing appointments warning: {e}")
+
             success = gcal.create_booking(
                 patient_name=patient["name"],
                 phone=phone,
@@ -597,7 +681,7 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
                 if not reply:
                     reply = f"Perfect! Your appointment for {date_str} at {time_str} is confirmed. We look forward to seeing you!"
 
-                # 1. Save the appointment to Supabase
+                # 1. Save the new appointment to Supabase
                 assigned_doctor_id = "default"
 
                 payload = {
@@ -616,12 +700,13 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
 
                 # 2. Right after the Supabase write succeeds, send a dedicated WhatsApp notification to the Doctor
                 if supabase_res.data:
+                    reschedule_note = f" (Rescheduled from {old_date_str})" if 'old_date_str' in locals() and old_date_str else ""
                     booking_record = {
                         "patient_name": patient["name"],
                         "patient_phone": phone,
                         "date_str": date_str,
                         "time_str": time_str,
-                        "procedure": procedure_name,
+                        "procedure": f"{procedure_name}{reschedule_note}",
                         "doctor_id": assigned_doctor_id,
                         "notes": patient.get("notes") or "Booked via WhatsApp AI Receptionist",
                         "appointment_id": supabase_res.data[0].get("id")
@@ -633,11 +718,11 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
     # ── Parse and act on CANCEL tag ──────────────────────────────────────────
     cancel_match = re.search(r"CANCEL:(\d{4}-\d{2}-\d{2}):(\d{2}:\d{2})", reply)
     if cancel_match and patient:
-        date_str, time_str = cancel_match.group(1), cancel_match.group(2)
-        gcal.cancel_booking(phone=phone, date_str=date_str, time_str=time_str)
+        c_date, c_time = cancel_match.group(1), cancel_match.group(2)
+        cancel_patient_appointment(phone=phone, date_str=c_date, time_str=c_time)
         reply = reply[: cancel_match.start()].strip()
         if not reply:
-            reply = f"Your appointment on {date_str} at {time_str} has been canceled."
+            reply = f"Your appointment on {c_date} at {c_time} has been canceled."
 
     # Save the final cleaned reply to the conversation history
     CONVERSATION_HISTORY[phone].append({"role": "assistant", "content": reply})
