@@ -839,13 +839,13 @@ button {
 
 .detail-actions {
   display: flex;
+  justify-content: flex-end;
   gap: var(--space-sm);
   margin-top: 2px;
 }
 
 .btn-detail {
-  flex: 1;
-  padding: 8px;
+  padding: 8px 24px;
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: 600;
@@ -1978,32 +1978,32 @@ body, .screen-app, .screen-app button, .screen-app input { font-family: 'Plus Ja
 /* Appointment row actions: keep the patient content flexible while reserving
    enough room for readable View and more-actions controls. */
 @media (min-width: 900px) {
-  #view-today .appt-card-main {
+  .appt-card-main {
     display: grid;
     grid-template-columns: 100px minmax(0, 1fr) 145px 104px;
     align-items: center;
     gap: 16px;
   }
 
-  #view-today .patient-group {
+  .patient-group {
     display: flex;
     align-items: center;
     gap: 12px;
     min-width: 0;
   }
 
-  #view-today .patient-group .appt-info {
+  .patient-group .appt-info {
     min-width: 0;
   }
 
-  #view-today .appt-name,
-  #view-today .appt-treatment {
+  .appt-name,
+  .appt-treatment {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  #view-today .appt-actions {
+  .appt-actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -2011,7 +2011,7 @@ body, .screen-app, .screen-app button, .screen-app input { font-family: 'Plus Ja
     min-width: 0;
   }
 
-  #view-today .appt-view {
+  .appt-view {
     width: 64px;
     min-width: 64px;
     padding: 0 8px;
@@ -2022,7 +2022,7 @@ body, .screen-app, .screen-app button, .screen-app input { font-family: 'Plus Ja
     white-space: nowrap;
   }
 
-  #view-today .appt-view svg {
+  .appt-view svg {
     width: 15px;
     height: 15px;
     flex: 0 0 15px;
@@ -2031,7 +2031,7 @@ body, .screen-app, .screen-app button, .screen-app input { font-family: 'Plus Ja
     stroke-width: 1.6;
   }
 
-  #view-today .appt-more {
+  .appt-more {
     width: 32px;
     min-width: 32px;
     padding: 0;

@@ -214,14 +214,14 @@ const ScheduleView = (() => {
     // Tap status badge → open status picker
     card.querySelector('.status-badge').addEventListener('click', e => {
       e.stopPropagation();
-      if (window.TodayView && TodayView.openStatusPicker) {
+      if (typeof TodayView !== 'undefined' && TodayView.openStatusPicker) {
         TodayView.openStatusPicker(appt);
       }
     });
 
     card.querySelector('.appt-view').addEventListener('click', e => {
       e.stopPropagation();
-      if (window.TodayView && TodayView.openAppointmentView) {
+      if (typeof TodayView !== 'undefined' && TodayView.openAppointmentView) {
         TodayView.openAppointmentView(appt);
       }
     });
