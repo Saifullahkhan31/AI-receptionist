@@ -195,19 +195,28 @@ def create_booking(
     date_str: str,
     time_str: str,
     procedure: str = "Dental Appointment",
+    duration_minutes: int | None = None,
 ) -> bool:
     """
-    Create a 45-minute Google Calendar event for the given slot.
+    Create a Google Calendar event for the given slot.
+    Consultation = 30 minutes, Treatment/Procedure = 45 minutes.
     date_str: 'YYYY-MM-DD', time_str: 'HH:MM'
     Returns True on success, False on failure.
     """
     try:
         service = _get_service()
 
+        if duration_minutes is None:
+            proc_lower = procedure.lower()
+            if any(k in proc_lower for k in ["consult", "check", "checkup", "inquiry"]):
+                duration_minutes = 30
+            else:
+                duration_minutes = 45
+
         start_local = datetime.strptime(
             f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
         ).replace(tzinfo=TZ)
-        end_local = start_local + timedelta(minutes=SLOT_DURATION_MINUTES)
+        end_local = start_local + timedelta(minutes=duration_minutes)
 
         attendees = []
         for email in [os.getenv("DR_MUSTAFA_GMAIL"), os.getenv("DR_QASIM_GMAIL")]:
@@ -220,7 +229,7 @@ def create_booking(
                 f"Patient: {patient_name}\n"
                 f"Phone: {phone}\n"
                 f"Procedure: {procedure}\n"
-                f"Duration: 45 minutes"
+                f"Duration: {duration_minutes} minutes"
             ),
             "start": {
                 "dateTime": start_local.isoformat(),
@@ -240,7 +249,7 @@ def create_booking(
             kwargs["sendUpdates"] = "all"
 
         created = service.events().insert(**kwargs).execute()
-        print(f"[GCal] Event created (45 min): {created.get('htmlLink')}")
+        print(f"[GCal] Event created ({duration_minutes} min): {created.get('htmlLink')}")
         return True
 
     except HttpError as e:
