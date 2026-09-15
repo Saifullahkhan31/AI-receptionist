@@ -43,7 +43,7 @@ from datetime import datetime
 # Doctor Notification Lookup & Registry
 # ─────────────────────────────────────────────────────────────────────────────
 # Default doctor number: Dr. Mustafa (923312887365)
-DOCTOR_WHATSAPP_NUMBER = os.getenv("DOCTOR_WHATSAPP_NUMBER", "923312887365")
+DOCTOR_WHATSAPP_NUMBER = os.getenv("DOCTOR_WHATSAPP_NUMBER", "923311286436")
 
 # Lookup mapping doctor_id -> WhatsApp configuration
 DOCTOR_REGISTRY = {
@@ -466,7 +466,7 @@ Book them as a: NEW PATIENT
 The available doctor will be determined according to the clinic's appointment availability/scheduling system.
 The receptionist does not need to explain the internal allocation process.
 Simply tell the patient:
-"Ji, main aap ko new patient ke taur par book kar deti hoon."
+"Ji, main apka appointment book krdeti hon."
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 12. NEW PATIENT + AVAILABLE TIME
@@ -614,7 +614,7 @@ If the patient explicitly asks about fees, prices, or charges:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 22. CLINIC LOCATION & DIRECTIONS (LANDMARK RULES)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Location: Grey Skyline, Block 13, Jauhar Chowrangi Road, Gulistan-e-Johar, Karachi.
+Location: Hussaini blood bank, Jauhar Chowrangi Road, Gulistan-e-Johar, Karachi.
 Maps link: https://maps.app.goo.gl/7NfZMQEBh1HTo5bw8
 
 IMPORTANT LANDMARKS & ROUTE:
