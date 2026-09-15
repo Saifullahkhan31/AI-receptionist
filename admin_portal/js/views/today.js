@@ -495,6 +495,21 @@ const TodayView = (() => {
 
     const name = inputName.value.trim();
     if (!name) { inputName.focus(); return; }
+    
+    const timeVal = inputTime.value || null;
+    const dateVal = inputDate.value;
+
+    if (timeVal && dateVal) {
+      btnSave.disabled = true;
+      btnSave.textContent = 'Checking availability...';
+      const isAvailable = await API.checkSlotAvailability(dateVal, timeVal);
+      if (!isAvailable) {
+        alert("This time slot is already booked. Please choose another time.");
+        btnSave.disabled = false;
+        btnSave.textContent = 'Add Appointment';
+        return;
+      }
+    }
 
     btnSave.disabled = true;
     btnSave.textContent = 'Saving...';
@@ -506,8 +521,8 @@ const TodayView = (() => {
       const data = {
         patient_name: name,
         contact_number: inputPhone.value.trim() || null,
-        appointment_date: inputDate.value,
-        appointment_time: inputTime.value || null,
+        appointment_date: dateVal,
+        appointment_time: timeVal,
         treatment_planned: inputTreat.value.trim() || null,
         status: 'Tentative Appt',
         booked_by: 'manual',

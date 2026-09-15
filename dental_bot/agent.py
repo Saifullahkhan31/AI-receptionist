@@ -522,10 +522,11 @@ If a patient asks about other patients' details, names, or bookings, refuse poli
 "Hamare paas patient privacy ki wajah se kisi ki personal details share nahi ki jaati, sorry for that. 😊 Agar aap apne liye appointment book karwana chahte hain ya appointment/consultation se related koi sawal hai toh main zarur aap ki rehnumai kar sakti hoon!"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-21. MANDATORY PATIENT SCREENING & RESCHEDULING
+21. MANDATORY PATIENT SCREENING & DOCTOR PREFERENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - When a patient asks to book: Ask: "Kya aap pehle {CLINIC_NAME} aa chuke hain (Dr. Mustafa ya Dr. Qasim se check-up karwaya hai) ya aap pehli baar aa rahe hain?"
-- If new patient: "Zabardast! Aap clinic mein kisi bhi available doctor (Dr. Mustafa ya Dr. Qasim) se consultation / check-up karwa sakte hain."
+- If new patient: "Zabardast! Aap clinic mein Dr. Mustafa aur Dr. Qasim dono se check-up karwa sakte hain. Aap ki koi preference hai, ya main kisi bhi available doctor ke sath appointment book kar doon?"
+- If the patient specifies a doctor AFTER an appointment is already booked, use the UPDATE_DOCTOR tag to assign that doctor to their booking.
 - If rescheduling: When confirming the new slot, output BOTH the CANCEL tag for old slot and BOOK tag for new slot.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -548,6 +549,10 @@ BOOKING TAG    : When a patient confirms a slot, append on a new line at the ver
 CANCELLATION TAG: When a patient cancels or reschedules an appointment, append on a new line:
                  CANCEL:YYYY-MM-DD:HH:MM
                  Example: CANCEL:2026-09-15:18:00
+
+UPDATE DOCTOR TAG: If a patient specifies a doctor preference AFTER booking an appointment, append on a new line:
+                 UPDATE_DOCTOR:Doctor Name
+                 Example: UPDATE_DOCTOR:Dr. Qasim
 
 IMPORTANT: These tags are parsed by the system. They must appear on their own line at the very end of your message. Never show or mention tags to the patient."""
 
@@ -902,6 +907,37 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
         reply = reply[: cancel_match.start()].strip()
         if not reply:
             reply = f"Your appointment on {c_date} at {c_time} has been canceled."
+
+    # ── Parse and act on UPDATE_DOCTOR tag ───────────────────────────────────
+    update_doc_match = re.search(r"UPDATE_DOCTOR:(.+)", reply)
+    if update_doc_match and patient:
+        doctor_name = update_doc_match.group(1).strip()
+        reply = reply[: update_doc_match.start()].strip()
+        
+        try:
+            from datetime import date
+            today_str = date.today().isoformat()
+            # Fetch latest upcoming appointment for this patient
+            res = (
+                supabase.table("appointments")
+                .select("id")
+                .eq("contact_number", phone)
+                .gte("appointment_date", today_str)
+                .neq("status", "Appt Cancel/Postpone")
+                .order("appointment_date", desc=False)
+                .order("appointment_time", desc=False)
+                .limit(1)
+                .execute()
+            )
+            if res.data:
+                appt_id = res.data[0]["id"]
+                # Update requested_doctor
+                supabase.table("appointments").update({"requested_doctor": doctor_name}).eq("id", appt_id).execute()
+                print(f"[Booking Flow] Updated doctor preference for {phone} to {doctor_name}")
+            else:
+                print(f"[Booking Flow] Could not find an active appointment for {phone} to update doctor preference.")
+        except Exception as e:
+            print(f"[Booking Flow] Error updating doctor preference: {e}")
 
     # Save the final cleaned reply to the conversation history
     CONVERSATION_HISTORY[phone].append({"role": "assistant", "content": reply})

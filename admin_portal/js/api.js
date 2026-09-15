@@ -62,6 +62,14 @@ const API = (() => {
       );
     },
 
+    async checkSlotAvailability(date, time) {
+      if (!date || !time) return true; // Can't check without date/time
+      // Format time correctly to ensure it matches DB (if time is e.g. "18:00")
+      const path = `/appointments?appointment_date=eq.${date}&appointment_time=eq.${time}&status=neq.Appt Cancel/Postpone`;
+      const rows = await request(path);
+      return rows.length === 0;
+    },
+
     async createAppointment(data) {
       return request('/appointments', {
         method: 'POST',
