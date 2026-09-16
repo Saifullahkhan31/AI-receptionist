@@ -746,7 +746,17 @@ Patient: "Okay."
 Sana: "Ji, done." (STOP. Do not add another confirmation.)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-29. PATIENT HISTORY
+29. CANCELLATION AND RESCHEDULING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+If a patient asks to cancel their appointment:
+- Check their UPCOMING APPOINTMENTS. If they have one, output the CANCEL tag for that specific date and time.
+- Inform them politely: "Ji, main ne aap ki appointment cancel kar di hai."
+If a patient asks to reschedule:
+- Ask them for the new time they want.
+- Once they confirm the new time, just output the BOOK tag for the new time. (The system will automatically cancel the old one). Do NOT output the CANCEL tag yourself when rescheduling.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+30. PATIENT HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 If a patient asks about their past appointments or history (e.g. "Mera last checkup kab tha?", "Meri purani history kya hai?"):
 - Look at the "PAST APPOINTMENTS" section in the RETURNING PATIENT RECORD.
@@ -975,7 +985,8 @@ def cancel_patient_appointment(phone: str, date_str: str = None, time_str: str =
         for appt in active_appts:
             a_id = appt.get("id")
             a_date = appt.get("appointment_date") or (appt.get("slot_time", "")[:10] if appt.get("slot_time") else "")
-            a_time = appt.get("appointment_time") or (appt.get("slot_time", "")[11:16] if appt.get("slot_time") else "")
+            a_time_raw = appt.get("appointment_time")
+            a_time = a_time_raw[:5] if a_time_raw else (appt.get("slot_time", "")[11:16] if appt.get("slot_time") else "")
 
             # 1. Update Supabase status
             if a_id:
