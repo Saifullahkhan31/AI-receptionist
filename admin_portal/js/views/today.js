@@ -563,7 +563,8 @@ const TodayView = (() => {
 
   // ── Delete appointment ──────────────────────────
   async function deleteAppt(id) {
-    if (!confirm('Delete this appointment?')) return;
+    const confirmed = await window.cmdConfirm('Delete Appointment?', 'Are you sure you want to delete this appointment? This action cannot be undone.', 'Delete', '#e53935');
+    if (!confirmed) return;
     appointments = appointments.filter(a => a.id !== id);
     render();
     try {

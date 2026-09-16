@@ -115,3 +115,42 @@ function initApp(doctor) {
 
   console.log('[APP] Initialised for', displayName);
 }
+
+/* ═══════════════════════════════════════════════
+   GLOBAL UTILITIES
+════════════════════════════════════════════════ */
+window.cmdConfirm = function(title, text, confirmText = 'Confirm', confirmColor = '#2196D3') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('modal-delete');
+    if (!modal) return resolve(confirm(title + '\n' + text)); // fallback
+
+    const titleEl = modal.querySelector('h2');
+    const textEl = modal.querySelector('p');
+    const confirmBtn = document.getElementById('confirm-delete');
+    const cancelBtn = document.getElementById('cancel-delete');
+    
+    if (titleEl) titleEl.textContent = title;
+    if (textEl) textEl.textContent = text;
+    if (confirmBtn) {
+      confirmBtn.textContent = confirmText;
+      confirmBtn.style.background = confirmColor;
+    }
+    
+    modal.hidden = false;
+    
+    const cleanup = () => {
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      modal.removeEventListener('click', onBackdrop);
+      modal.hidden = true;
+    };
+    
+    const onConfirm = () => { cleanup(); resolve(true); };
+    const onCancel = () => { cleanup(); resolve(false); };
+    const onBackdrop = (e) => { if (e.target === modal) onCancel(); };
+    
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    modal.addEventListener('click', onBackdrop);
+  });
+};
