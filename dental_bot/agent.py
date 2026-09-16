@@ -254,6 +254,42 @@ def notify_doctor(patient_name: str, patient_phone: str, date_str: str, time_str
 # Gemini AI logic
 # ─────────────────────────────────────────────────────────────────────────────
 
+def get_patient_past_appointments(phone: str) -> str:
+    """Fetch past appointments for this patient from Supabase."""
+    try:
+        from datetime import date
+        today_str = date.today().isoformat()
+
+        res = (
+            supabase.table("appointments")
+            .select("*")
+            .eq("contact_number", phone)
+            .lt("appointment_date", today_str)
+            .neq("status", "Appt Cancel/Postpone")
+            .order("appointment_date", desc=True)
+            .order("appointment_time", desc=True)
+            .limit(5)
+            .execute()
+        )
+        if res.data:
+            lines = []
+            for appt in res.data:
+                a_date = appt.get("appointment_date") or (appt.get("slot_time", "")[:10] if appt.get("slot_time") else "")
+                a_time = appt.get("appointment_time") or (appt.get("slot_time", "")[11:16] if appt.get("slot_time") else "")
+                a_proc = appt.get("treatment_planned") or appt.get("procedure", "Dental Visit")
+                a_status = appt.get("status", "Confirmed")
+
+                formatted_t = format_time_12h(a_time) if a_time else "TBD"
+                day_name = get_day_name(a_date) if a_date else ""
+
+                day_part = f" ({day_name})" if day_name else ""
+                lines.append(f"  • Date: {a_date}{day_part} at {formatted_t} | Procedure: {a_proc} | Status: {a_status}")
+            return "\n".join(lines)
+    except Exception as e:
+        print(f"[Supabase] Error fetching patient past appointments: {e}")
+    return "  No past appointments found on record."
+
+
 def get_patient_upcoming_appointments(phone: str) -> str:
     """Fetch active/upcoming appointments for this patient from Supabase."""
     try:
@@ -295,6 +331,7 @@ def build_system_prompt(patient: dict | None, open_slots: list[str], phone: str)
     current_date_str = datetime.now().strftime("%A, %d %B %Y")
     slots_text = "\n".join(open_slots) if open_slots else "No slots available this week."
     upcoming_appts = get_patient_upcoming_appointments(phone)
+    past_appts = get_patient_past_appointments(phone)
 
     patient_ctx = ""
     if patient:
@@ -304,6 +341,8 @@ def build_system_prompt(patient: dict | None, open_slots: list[str], phone: str)
 - Phone                 : {phone}
 - Last Visit            : {patient.get('last_proc') or 'not on record'}
 - Notes                 : {patient.get('notes') or 'none'}
+- PAST APPOINTMENTS     :
+{past_appts}
 - UPCOMING APPOINTMENTS :
 {upcoming_appts}
 ================================
@@ -312,6 +351,8 @@ def build_system_prompt(patient: dict | None, open_slots: list[str], phone: str)
         patient_ctx = f"""
 === NEW PATIENT / UNREGISTERED ===
 - Phone                 : {phone}
+- PAST APPOINTMENTS     :
+{past_appts}
 - UPCOMING APPOINTMENTS :
 {upcoming_appts}
 ==================================
@@ -705,7 +746,15 @@ Patient: "Okay."
 Sana: "Ji, done." (STOP. Do not add another confirmation.)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-29. CORE BEHAVIOR SUMMARY
+29. PATIENT HISTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+If a patient asks about their past appointments or history (e.g. "Mera last checkup kab tha?", "Meri purani history kya hai?"):
+- Look at the "PAST APPOINTMENTS" section in the RETURNING PATIENT RECORD.
+- Politely inform them about their past visits based on the record. Example: "Ji, aap ka last checkup 15 August ko hua tha."
+- If no past appointments exist, say: "Ji, mere record mein aap ki koi pichli history nahi aarahi."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+30. CORE BEHAVIOR SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 The receptionist must behave like a real Pakistani dental clinic receptionist:
 - Short replies.
