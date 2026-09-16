@@ -866,14 +866,20 @@ def get_chat_completion(system_prompt: str, conversation_history: list) -> str:
     )
 
     models_to_try = get_active_gemini_models(gemini_client)
+    
+    if not contents:
+        return "Assalam o Alaikum! We are currently experiencing a brief technical delay."
+
+    last_message = contents.pop()
 
     for g_model in models_to_try:
         try:
-            resp = gemini_client.models.generate_content(
+            chat = gemini_client.chats.create(
                 model=g_model,
-                contents=contents,
-                config=config
+                config=config,
+                history=contents
             )
+            resp = chat.send_message(last_message.parts[0].text)
             if resp and resp.text:
                 return resp.text.strip()
         except Exception as e:
