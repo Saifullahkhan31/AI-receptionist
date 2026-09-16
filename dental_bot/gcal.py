@@ -218,6 +218,18 @@ def create_booking(
         ).replace(tzinfo=TZ)
         end_local = start_local + timedelta(minutes=duration_minutes)
 
+        # EXACT SLOT OVERLAP CHECK
+        freebusy = service.freebusy().query(body={
+            "timeMin": start_local.isoformat(),
+            "timeMax": end_local.isoformat(),
+            "timeZone": TIMEZONE_STR,
+            "items": [{"id": CALENDAR_ID}]
+        }).execute()
+        
+        if freebusy.get("calendars", {}).get(CALENDAR_ID, {}).get("busy"):
+            print(f"[GCal] create_booking failed: Overlap detected for {start_local} to {end_local}")
+            return False
+
         attendees = []
         for email in [os.getenv("DR_MUSTAFA_GMAIL"), os.getenv("DR_QASIM_GMAIL")]:
             if email:

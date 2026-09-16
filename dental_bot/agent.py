@@ -291,6 +291,8 @@ def get_patient_upcoming_appointments(phone: str) -> str:
 
 
 def build_system_prompt(patient: dict | None, open_slots: list[str], phone: str) -> str:
+    from datetime import datetime
+    current_date_str = datetime.now().strftime("%A, %d %B %Y")
     slots_text = "\n".join(open_slots) if open_slots else "No slots available this week."
     upcoming_appts = get_patient_upcoming_appointments(phone)
 
@@ -316,6 +318,8 @@ def build_system_prompt(patient: dict | None, open_slots: list[str], phone: str)
 """
 
     return f"""You are Sana, the AI Receptionist for {CLINIC_NAME}.
+
+TODAY IS: {current_date_str}
 
 Your responses must be short, natural, polite, professional, and human-like.
 Follow the rules below strictly.
@@ -738,17 +742,13 @@ CURRENT SCHEDULE & SLOTS THIS WEEK
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SYSTEM TAGS (HIDDEN — NEVER SHOW TO PATIENT)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BOOKING TAG: When a patient confirms a slot, append on a new line at the very end:
-BOOK:YYYY-MM-DD:HH:MM:Procedure Name
-Example: BOOK:2026-09-16:19:15:Consultation Checkup
+BOOKING TAG: When a patient confirms a slot, append on a new line at the very end. You MUST include the requested Doctor (Dr. Qasim or Dr. Mustafa):
+BOOK:YYYY-MM-DD:HH:MM:Procedure Name:Doctor Name
+Example: BOOK:2026-09-16:19:15:Consultation:Dr. Qasim
 
 CANCELLATION TAG: When a patient cancels or reschedules an appointment, append on a new line:
 CANCEL:YYYY-MM-DD:HH:MM
 Example: CANCEL:2026-09-15:18:00
-
-UPDATE DOCTOR TAG: If a patient specifies a doctor preference AFTER booking an appointment, append on a new line:
-UPDATE_DOCTOR:Doctor Name
-Example: UPDATE_DOCTOR:Dr. Qasim
 
 IMPORTANT: These tags are parsed by the system. They must appear on their own line at the very end of your message. Never show or mention tags to the patient."""
 
@@ -1017,10 +1017,11 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
     reply = get_chat_completion(system_prompt, CONVERSATION_HISTORY[phone])
 
     # ── Parse and act on BOOK tag ────────────────────────────────────────────
-    book_match = re.search(r"BOOK:(\d{4}-\d{2}-\d{2}):(\d{2}:\d{2})(?::(.+))?", reply)
+    book_match = re.search(r"\[?BOOK:(\d{4}-\d{2}-\d{2}):(\d{2}:\d{2}):([^:]+):(.+)\]?", reply)
     if book_match and patient:
         date_str, time_str = book_match.group(1), book_match.group(2)
         procedure_name = book_match.group(3).strip() if book_match.group(3) else "Dental Appointment"
+        doctor_name = book_match.group(4).strip() if book_match.group(4) else "Unspecified"
         slot_key = (phone, date_str, time_str)
         reply = reply[: book_match.start()].strip()
 
@@ -1077,7 +1078,8 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
                     "appointment_date": date_str,
                     "appointment_time": time_str,
                     "status": "Confirmed",
-                    "booked_by": "ai_bot"
+                    "booked_by": "ai_bot",
+                    "requested_doctor": doctor_name
                 }
                 if patient.get("id"):
                     payload["patient_id"] = patient["id"]
@@ -1109,37 +1111,6 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
         reply = reply[: cancel_match.start()].strip()
         if not reply:
             reply = f"Your appointment on {c_date} at {c_time} has been canceled."
-
-    # ── Parse and act on UPDATE_DOCTOR tag ───────────────────────────────────
-    update_doc_match = re.search(r"UPDATE_DOCTOR:(.+)", reply)
-    if update_doc_match and patient:
-        doctor_name = update_doc_match.group(1).strip()
-        reply = reply[: update_doc_match.start()].strip()
-        
-        try:
-            from datetime import date
-            today_str = date.today().isoformat()
-            # Fetch latest upcoming appointment for this patient
-            res = (
-                supabase.table("appointments")
-                .select("id")
-                .eq("contact_number", phone)
-                .gte("appointment_date", today_str)
-                .neq("status", "Appt Cancel/Postpone")
-                .order("appointment_date", desc=False)
-                .order("appointment_time", desc=False)
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                appt_id = res.data[0]["id"]
-                # Update requested_doctor
-                supabase.table("appointments").update({"requested_doctor": doctor_name}).eq("id", appt_id).execute()
-                print(f"[Booking Flow] Updated doctor preference for {phone} to {doctor_name}")
-            else:
-                print(f"[Booking Flow] Could not find an active appointment for {phone} to update doctor preference.")
-        except Exception as e:
-            print(f"[Booking Flow] Error updating doctor preference: {e}")
 
     # Save the final cleaned reply to the conversation history
     CONVERSATION_HISTORY[phone].append({"role": "assistant", "content": reply})
