@@ -148,6 +148,22 @@ const TodayView = (() => {
     const avatarColors = ['blue', 'purple', 'coral', 'green', 'orange', 'cyan'];
     const avatarColor = avatarColors[(appt.patient_name || '').length % avatarColors.length];
 
+    const docColors = [
+      { bg: '#edf4ff', text: '#1669d8' },
+      { bg: '#eefaf3', text: '#159447' },
+      { bg: '#fff9e7', text: '#bd8100' },
+      { bg: '#f3e8ff', text: '#7e22ce' },
+      { bg: '#ffe4e6', text: '#e11d48' },
+      { bg: '#e0f2fe', text: '#0369a1' }
+    ];
+    let docColor = docColors[0];
+    const docName = requestedDoctor(appt);
+    if (docName) {
+      let hash = 0;
+      for (let i = 0; i < docName.length; i++) hash = docName.charCodeAt(i) + ((hash << 5) - hash);
+      docColor = docColors[Math.abs(hash) % docColors.length];
+    }
+
     const card = document.createElement('div');
     card.className = 'appt-card';
     card.dataset.id = appt.id;
@@ -166,8 +182,8 @@ const TodayView = (() => {
           </div>
         </div>
         <div class="appt-doctor">
-          ${requestedDoctor(appt) 
-            ? `<span class="status-badge" style="background: #f0f4f8; color: #476282; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escape(requestedDoctor(appt))}</span>`
+          ${docName
+            ? `<span class="status-badge" style="background: ${docColor.bg}; color: ${docColor.text}; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escape(docName)}</span>`
             : ''}
         </div>
         <button class="status-badge ${badge}" data-appt-id="${escape(appt.id)}" aria-label="Change status">
