@@ -1508,7 +1508,7 @@ button {
 .appointment-filters button { border: 1px solid #e5e8ee; border-radius: 9px; background: #fff; padding: 6px 12px; color: #6b707a; cursor: pointer; font: inherit; font-size: 12px; }
 .appointment-filters button.active { color: white; background: var(--dashboard-blue); border-color: var(--dashboard-blue); }
 .appointments-heading small { display: none; }
-.appointment-table-head { display: grid; grid-template-columns: 100px minmax(0, 1.2fr) minmax(0, 1fr) 145px 104px; gap: 16px; padding: 13px 24px; color: #777b84; background: #fcfcfd; border-bottom: 1px solid var(--dashboard-line); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.appointment-table-head { display: grid; grid-template-columns: 100px minmax(0, 1fr) 140px 145px 104px; gap: 16px; padding: 13px 24px; color: #777b84; background: #fcfcfd; border-bottom: 1px solid var(--dashboard-line); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .appointment-table-head span:nth-child(3) { padding-left: 11px; }
 .appointment-table-head span:nth-child(4) { text-align: right; padding-right: 18px; }
 .appt-list { padding: 0; }
@@ -1982,7 +1982,7 @@ body, .screen-app, .screen-app button, .screen-app input { font-family: 'Plus Ja
 @media (min-width: 900px) {
   .appt-card-main {
     display: grid;
-    grid-template-columns: 100px minmax(0, 1.2fr) minmax(0, 1fr) 145px 104px;
+    grid-template-columns: 100px minmax(0, 1fr) 140px 145px 104px;
     align-items: center;
     gap: 16px;
   }
