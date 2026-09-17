@@ -382,7 +382,7 @@ const ScheduleView = (() => {
   });
 
   window.addEventListener('appointments-updated', () => {
-    if (document.getElementById('screen-app').getAttribute('data-view') === 'schedule') {
+    if (Router.getCurrent() === 'schedule') {
       load();
     }
   });

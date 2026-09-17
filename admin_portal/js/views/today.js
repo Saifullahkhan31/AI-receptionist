@@ -647,7 +647,7 @@ const TodayView = (() => {
 
   // ── Listen for realtime updates ─────────────────
   window.addEventListener('appointments-updated', () => {
-    if (document.getElementById('screen-app').getAttribute('data-view') === 'today') {
+    if (Router.getCurrent() === 'today') {
       load();
     }
   });
