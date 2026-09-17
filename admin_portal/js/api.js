@@ -26,6 +26,7 @@ const API = (() => {
   async function request(path, options = {}) {
     const res = await fetch(BASE + path, {
       headers: getHeaders(),
+      cache: 'no-store',
       ...options,
     });
     if (!res.ok) {
