@@ -122,7 +122,7 @@ const TodayView = (() => {
 
   function requestedDoctor(appt) {
     const doctor = doctorDirectory.get(appt.doctor_id);
-    return appt.doctor_name || appt.requested_doctor || doctor?.display_name || doctor?.name || 'Not recorded';
+    return appt.doctor_name || appt.requested_doctor || doctor?.display_name || doctor?.name || null;
   }
 
   function bookingSource(appt) {
@@ -165,8 +165,10 @@ const TodayView = (() => {
             <div class="appt-treatment">${escape(appt.treatment_planned || 'No treatment specified')}</div>
           </div>
         </div>
-        <div class="appt-doctor" style="font-size: 14px; font-weight: 500; color: #202124;">
-          ${escape(requestedDoctor(appt))}
+        <div class="appt-doctor">
+          ${requestedDoctor(appt) 
+            ? `<span class="status-badge" style="background: #f0f4f8; color: #476282; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escape(requestedDoctor(appt))}</span>`
+            : ''}
         </div>
         <button class="status-badge ${badge}" data-appt-id="${escape(appt.id)}" aria-label="Change status">
           ${label}
