@@ -116,9 +116,9 @@ function initApp(doctor) {
   // ── Setup Supabase Realtime ────────────────────
   if (window.supabase) {
     const token = localStorage.getItem(CONFIG.SESSION_KEY) || CONFIG.SUPABASE_ANON_KEY;
-    const sbClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    });
+    const sbClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    // Authenticate the WebSocket (realtime) connection with the JWT — this is separate from REST headers
+    sbClient.realtime.setAuth(token);
     sbClient.channel('appointments-live')
       .on(
         'postgres_changes',
@@ -134,12 +134,6 @@ function initApp(doctor) {
   } else {
     console.warn('[Realtime] Supabase JS not loaded — realtime disabled.');
   }
-
-  // ── Polling fallback (every 15s) ───────────────
-  // Ensures dashboard always reflects latest data even if realtime is blocked.
-  setInterval(() => {
-    window.dispatchEvent(new Event('appointments-updated'));
-  }, 15000);
 
   console.log('[APP] Initialised for', displayName);
 }
