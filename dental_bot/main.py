@@ -13,6 +13,7 @@ load_dotenv()
 
 from reminders import reminder_loop
 from whatsapp_handler import verify_webhook, whatsapp_webhook
+import gcal
 
 # Optional voice handler (gracefully disabled in messaging-only mode)
 try:
@@ -176,3 +177,38 @@ async def admin_me(request: Request):
         raise HTTPException(status_code=401, detail="Token expired.")
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token.")
+
+
+@app.delete("/api/admin/appointments/{appt_id}")
+async def admin_delete_appointment(appt_id: int, request: Request):
+    """Delete an appointment from Supabase AND Google Calendar."""
+    # 1. Verify JWT
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="No token provided.")
+    try:
+        pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM], audience="authenticated")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token.")
+
+    # 2. Fetch appointment from Supabase
+    sb = get_supabase()
+    res = sb.table("appointments").select("*").eq("id", appt_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+    appt = res.data[0]
+
+    phone = appt.get("contact_number")
+    a_date = appt.get("appointment_date") or (appt.get("slot_time", "")[:10] if appt.get("slot_time") else "")
+    a_time_raw = appt.get("appointment_time")
+    a_time = a_time_raw[:5] if a_time_raw else (appt.get("slot_time", "")[11:16] if appt.get("slot_time") else "")
+
+    # 3. Cancel in Google Calendar
+    if phone and a_date and a_time:
+        gcal.cancel_booking(phone=phone, date_str=a_date, time_str=a_time)
+
+    # 4. Delete from Supabase
+    sb.table("appointments").delete().eq("id", appt_id).execute()
+
+    return JSONResponse({"status": "success", "message": "Appointment deleted."})

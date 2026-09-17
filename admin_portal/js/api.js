@@ -92,9 +92,20 @@ const API = (() => {
     },
 
     async deleteAppointment(id) {
-      return request(`/appointments?id=eq.${id}`, {
+      const backendUrl = CONFIG.RAILWAY_API_URL;
+      const token = localStorage.getItem(CONFIG.SESSION_KEY);
+      
+      const res = await fetch(`${backendUrl}/api/admin/appointments/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
+      
+      if (!res.ok) {
+        throw new Error('Failed to delete appointment via backend');
+      }
+      return res.json();
     },
 
     // ── Patients ─────────────────────────────────
