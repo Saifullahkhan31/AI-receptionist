@@ -286,12 +286,13 @@ def get_patient_past_appointments(phone: str) -> str:
                 a_time = appt.get("appointment_time") or (appt.get("slot_time", "")[11:16] if appt.get("slot_time") else "")
                 a_proc = appt.get("treatment_planned") or appt.get("procedure", "Dental Visit")
                 a_status = appt.get("status", "Confirmed")
+                a_doctor = appt.get("requested_doctor") or "Unspecified"
 
                 formatted_t = format_time_12h(a_time) if a_time else "TBD"
                 day_name = get_day_name(a_date) if a_date else ""
 
                 day_part = f" ({day_name})" if day_name else ""
-                lines.append(f"  • Date: {a_date}{day_part} at {formatted_t} | Procedure: {a_proc} | Status: {a_status}")
+                lines.append(f"  • Date: {a_date}{day_part} at {formatted_t} | Doctor: {a_doctor} | Procedure: {a_proc} | Status: {a_status}")
             return "\n".join(lines)
     except Exception as e:
         print(f"[Supabase] Error fetching patient past appointments: {e}")
@@ -321,12 +322,13 @@ def get_patient_upcoming_appointments(phone: str) -> str:
                 a_time = appt.get("appointment_time") or (appt.get("slot_time", "")[11:16] if appt.get("slot_time") else "")
                 a_proc = appt.get("treatment_planned") or appt.get("procedure", "Dental Visit")
                 a_status = appt.get("status", "Confirmed")
+                a_doctor = appt.get("requested_doctor") or "Unspecified"
 
                 formatted_t = format_time_12h(a_time) if a_time else "TBD"
                 day_name = get_day_name(a_date) if a_date else ""
 
                 day_part = f" ({day_name})" if day_name else ""
-                lines.append(f"  • Date: {a_date}{day_part} at {formatted_t} | Procedure: {a_proc} | Status: {a_status}")
+                lines.append(f"  • Date: {a_date}{day_part} at {formatted_t} | Doctor: {a_doctor} | Procedure: {a_proc} | Status: {a_status}")
             return "\n".join(lines)
     except Exception as e:
         print(f"[Supabase] Error fetching patient upcoming appointments: {e}")
