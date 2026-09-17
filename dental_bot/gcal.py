@@ -184,6 +184,47 @@ def get_open_slots(days_ahead: int = 7, max_slots: int = 40) -> list[str]:
         print(f"[GCal] get_open_slots failed: {e}")
         return []
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Public: get existing appointments (busy periods)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_busy_periods(days_ahead: int = 7) -> list[str]:
+    """
+    Return a list of strings representing the exact busy periods from Google Calendar.
+    Format: 'YYYY-MM-DD from HH:MM AM/PM to HH:MM AM/PM'
+    """
+    try:
+        service = _get_service()
+
+        now_local = datetime.now(TZ)
+        time_min = now_local.isoformat()
+        time_max = (now_local + timedelta(days=days_ahead)).isoformat()
+
+        # Ask Google which times are busy
+        body = {
+            "timeMin": time_min,
+            "timeMax": time_max,
+            "timeZone": TIMEZONE_STR,
+            "items": [{"id": CALENDAR_ID}],
+        }
+        freebusy = service.freebusy().query(body=body).execute()
+        busy_periods = freebusy["calendars"][CALENDAR_ID]["busy"]
+
+        parsed_busy = []
+        for period in busy_periods:
+            b_start = datetime.fromisoformat(period["start"].replace("Z", "+00:00")).astimezone(TZ)
+            b_end   = datetime.fromisoformat(period["end"].replace("Z", "+00:00")).astimezone(TZ)
+            
+            # Format: 2026-09-18 from 6:00 PM to 6:45 PM
+            busy_str = f"{b_start.strftime('%Y-%m-%d')} from {b_start.strftime('%I:%M %p').lstrip('0')} to {b_end.strftime('%I:%M %p').lstrip('0')}"
+            parsed_busy.append(busy_str)
+
+        return parsed_busy
+
+    except Exception as e:
+        print(f"[GCal] get_busy_periods failed: {e}")
+        return []
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Public: create a booking event (45-minute duration)

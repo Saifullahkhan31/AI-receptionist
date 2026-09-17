@@ -335,9 +335,9 @@ def get_patient_upcoming_appointments(phone: str) -> str:
     return "  No active upcoming appointments found on record."
 
 
-def build_system_prompt(patient: dict | None, open_slots: list[str], phone: str) -> str:
+def build_system_prompt(patient: dict | None, busy_periods: list[str], phone: str) -> str:
     current_date_str = get_pkt_now().strftime("%A, %d %B %Y")
-    slots_text = "\n".join(open_slots) if open_slots else "No slots available this week."
+    slots_text = "\n".join(busy_periods) if busy_periods else "No existing appointments this week."
     upcoming_appts = get_patient_upcoming_appointments(phone)
     past_appts = get_patient_past_appointments(phone)
 
@@ -802,7 +802,7 @@ PATIENT CONTEXT
 {patient_ctx}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CURRENT SCHEDULE & SLOTS THIS WEEK
+EXISTING BOOKINGS (BUSY TIMES THIS WEEK)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {slots_text}
 
@@ -1072,8 +1072,8 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
         register_patient(phone, patient_name)
         patient = get_patient(phone) # Re-fetch so we have their dictionary properly loaded
 
-    # Get available slots from Google Calendar
-    open_slots = gcal.get_open_slots()
+    # Get busy periods from Google Calendar
+    busy_periods = gcal.get_busy_periods()
 
     # Initialize memory if new phone
     if phone not in CONVERSATION_HISTORY:
@@ -1083,7 +1083,7 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
     CONVERSATION_HISTORY[phone].append({"role": "user", "content": incoming_message})
 
     # Build system prompt and fetch completion
-    system_prompt = build_system_prompt(patient, open_slots, phone)
+    system_prompt = build_system_prompt(patient, busy_periods, phone)
     reply = get_chat_completion(system_prompt, CONVERSATION_HISTORY[phone])
 
     # ── Parse and act on BOOK tag ────────────────────────────────────────────
