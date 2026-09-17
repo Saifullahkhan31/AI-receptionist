@@ -165,6 +165,9 @@ const TodayView = (() => {
             <div class="appt-treatment">${escape(appt.treatment_planned || 'No treatment specified')}</div>
           </div>
         </div>
+        <div class="appt-doctor" style="font-size: 14px; font-weight: 500; color: #202124;">
+          ${escape(requestedDoctor(appt))}
+        </div>
         <button class="status-badge ${badge}" data-appt-id="${escape(appt.id)}" aria-label="Change status">
           ${label}
         </button>
