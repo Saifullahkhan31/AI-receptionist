@@ -37,7 +37,16 @@ def register_patient(phone: str, name: str) -> None:
 
 
 import json
-from datetime import datetime
+from datetime import datetime, date, timezone, timedelta
+
+# ── Pakistan Standard Time (PKT) UTC+5 ───────────────────────────────────────
+PKT = timezone(timedelta(hours=5))
+
+def get_pkt_now() -> datetime:
+    return datetime.now(PKT)
+
+def get_pkt_today_str() -> str:
+    return get_pkt_now().date().isoformat()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Doctor Notification Lookup & Registry
@@ -127,7 +136,7 @@ def send_doctor_notification(booking: dict) -> bool:
     Exact format required:
     "New Appointment: [Patient Name], [Phone Number], [Date], [Day], [Time], [Procedure]"
     """
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = get_pkt_now().strftime("%Y-%m-%d %H:%M:%S")
     appointment_id = booking.get("appointment_id", "N/A")
     patient_name = booking.get("patient_name", "Unknown Patient")
     patient_phone = booking.get("patient_phone", "")
@@ -257,8 +266,7 @@ def notify_doctor(patient_name: str, patient_phone: str, date_str: str, time_str
 def get_patient_past_appointments(phone: str) -> str:
     """Fetch past appointments for this patient from Supabase."""
     try:
-        from datetime import date
-        today_str = date.today().isoformat()
+        today_str = get_pkt_today_str()
 
         res = (
             supabase.table("appointments")
@@ -293,8 +301,7 @@ def get_patient_past_appointments(phone: str) -> str:
 def get_patient_upcoming_appointments(phone: str) -> str:
     """Fetch active/upcoming appointments for this patient from Supabase."""
     try:
-        from datetime import date
-        today_str = date.today().isoformat()
+        today_str = get_pkt_today_str()
 
         # Query appointments by contact_number
         res = (
@@ -327,8 +334,7 @@ def get_patient_upcoming_appointments(phone: str) -> str:
 
 
 def build_system_prompt(patient: dict | None, open_slots: list[str], phone: str) -> str:
-    from datetime import datetime
-    current_date_str = datetime.now().strftime("%A, %d %B %Y")
+    current_date_str = get_pkt_now().strftime("%A, %d %B %Y")
     slots_text = "\n".join(open_slots) if open_slots else "No slots available this week."
     upcoming_appts = get_patient_upcoming_appointments(phone)
     past_appts = get_patient_past_appointments(phone)
@@ -969,8 +975,7 @@ def cancel_patient_appointment(phone: str, date_str: str = None, time_str: str =
     """
     cancelled_dates = []
     try:
-        from datetime import date
-        today_str = date.today().isoformat()
+        today_str = get_pkt_today_str()
 
         # Query active appointments from Supabase
         query = supabase.table("appointments").select("*").eq("contact_number", phone).neq("status", "Appt Cancel/Postpone")
@@ -1036,8 +1041,7 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
     if is_doctor:
         print(f"[Doctor Session] Recognized {doc_display_name} ({phone})")
         # Fetch today and upcoming appointments from Supabase
-        from datetime import date
-        today_str = date.today().isoformat()
+        today_str = get_pkt_today_str()
         try:
             appts = supabase.table("appointments").select("*").gte("appointment_date", today_str).neq("status", "Appt Cancel/Postpone").order("appointment_date").order("appointment_time").limit(5).execute()
             if appts.data:
@@ -1094,8 +1098,7 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
             print(f"[Booking Flow] Slot {date_str} {time_str} already confirmed for {phone}. Skipping duplicate actions.")
         else:
             # Check if patient already has an active upcoming appointment in Supabase (Rescheduling protection!)
-            from datetime import date
-            today_str = date.today().isoformat()
+            today_str = get_pkt_today_str()
             try:
                 existing_active = (
                     supabase.table("appointments")
@@ -1123,14 +1126,14 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
                 procedure=procedure_name,
             )
             if not success:
-                reply += "\n\nSorry, that slot was just taken. Please choose another time."
+                reply = "Maazrat, wo time slot abhi abhi kisi aur ne book kar liya hai. Barae meharbani koi aur time muntakhib karein."
             else:
                 RECENTLY_BOOKED_SLOTS.add(slot_key)
                 if len(RECENTLY_BOOKED_SLOTS) > 500:
                     RECENTLY_BOOKED_SLOTS.clear()
 
                 if not reply:
-                    reply = f"Perfect! Your appointment for {date_str} at {time_str} is confirmed. We look forward to seeing you!"
+                    reply = f"Zabardast! Aap ka appointment {date_str} ko {time_str} baje confirm ho gaya hai. Hum aap ka intezar karenge!"
 
                 # 1. Save the new appointment to Supabase
                 assigned_doctor_id = "default"
