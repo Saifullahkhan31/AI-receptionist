@@ -988,6 +988,10 @@ def cancel_patient_appointment(phone: str, date_str: str = None, time_str: str =
             a_time_raw = appt.get("appointment_time")
             a_time = a_time_raw[:5] if a_time_raw else (appt.get("slot_time", "")[11:16] if appt.get("slot_time") else "")
 
+            # ADDED LOGIC: Only cancel the specific time slot if requested
+            if time_str and a_time != time_str:
+                continue
+
             # 1. Update Supabase status
             if a_id:
                 supabase.table("appointments").update({"status": "Appt Cancel/Postpone"}).eq("id", a_id).execute()
