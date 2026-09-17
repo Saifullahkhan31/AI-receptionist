@@ -119,7 +119,7 @@ function initApp(doctor) {
     const sbClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: `Bearer ${token}` } }
     });
-    sbClient.channel('custom-all-channel')
+    sbClient.channel('appointments-live')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'appointments' },
@@ -128,8 +128,18 @@ function initApp(doctor) {
           window.dispatchEvent(new Event('appointments-updated'));
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log('[Realtime] Subscription status:', status, err || '');
+      });
+  } else {
+    console.warn('[Realtime] Supabase JS not loaded — realtime disabled.');
   }
+
+  // ── Polling fallback (every 15s) ───────────────
+  // Ensures dashboard always reflects latest data even if realtime is blocked.
+  setInterval(() => {
+    window.dispatchEvent(new Event('appointments-updated'));
+  }, 15000);
 
   console.log('[APP] Initialised for', displayName);
 }
