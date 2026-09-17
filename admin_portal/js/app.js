@@ -115,7 +115,10 @@ function initApp(doctor) {
 
   // ── Setup Supabase Realtime ────────────────────
   if (window.supabase) {
-    const sbClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    const token = localStorage.getItem(CONFIG.SESSION_KEY) || CONFIG.SUPABASE_ANON_KEY;
+    const sbClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
     sbClient.channel('custom-all-channel')
       .on(
         'postgres_changes',
