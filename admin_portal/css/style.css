@@ -1691,7 +1691,7 @@ button {
 
 .appointment-table-head {
   display: grid;
-  grid-template-columns: 100px minmax(0, 1fr) 15px 145px 104px;
+  grid-template-columns: 100px minmax(0, 1fr) 105px 145px 104px;
   gap: 16px;
   padding: 13px 24px;
   color: #777b84;
@@ -1704,7 +1704,8 @@ button {
 }
 
 .appointment-table-head span:nth-child(3) {
-  padding-left: 11px;
+  text-align: right;
+  /* perfectly right-aligns the header above the badge */
 }
 
 .appointment-table-head span:nth-child(4) {
@@ -1742,8 +1743,9 @@ button {
 }
 
 .appt-doctor {
-  padding-left: 85px;
-  /* Nudge this pixel value up or down to align perfectly with your new heading position! */
+  display: flex;
+  justify-content: flex-end;
+  /* right-aligns the badge cleanly to the edge of the column */
 }
 
 
