@@ -645,6 +645,13 @@ const TodayView = (() => {
     if (e.detail.view === 'today') load();
   });
 
+  // ── Listen for realtime updates ─────────────────
+  window.addEventListener('appointments-updated', () => {
+    if (document.getElementById('screen-app').getAttribute('data-view') === 'today') {
+      load();
+    }
+  });
+
   // ── Public API ──────────────────────────────────
   return {
     init(doctor) {

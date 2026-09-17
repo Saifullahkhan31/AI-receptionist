@@ -381,5 +381,11 @@ const ScheduleView = (() => {
     if (e.detail.view === 'schedule') load();
   });
 
+  window.addEventListener('appointments-updated', () => {
+    if (document.getElementById('screen-app').getAttribute('data-view') === 'schedule') {
+      load();
+    }
+  });
+
   return { load, reload: load };
 })();

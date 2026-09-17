@@ -113,6 +113,21 @@ function initApp(doctor) {
         : now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   });
 
+  // ── Setup Supabase Realtime ────────────────────
+  if (window.supabase) {
+    const sbClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    sbClient.channel('custom-all-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'appointments' },
+        (payload) => {
+          console.log('[Realtime] Appointments changed:', payload);
+          window.dispatchEvent(new Event('appointments-updated'));
+        }
+      )
+      .subscribe();
+  }
+
   console.log('[APP] Initialised for', displayName);
 }
 
