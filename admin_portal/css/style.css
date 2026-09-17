@@ -1691,7 +1691,7 @@ button {
 
 .appointment-table-head {
   display: grid;
-  grid-template-columns: 100px minmax(0, 1fr) 105px 145px 104px;
+  grid-template-columns: 100px minmax(0, 1fr) 110px 100px 104px;
   gap: 16px;
   padding: 13px 24px;
   color: #777b84;
@@ -1704,8 +1704,8 @@ button {
 }
 
 .appointment-table-head span:nth-child(3) {
-  text-align: right;
-  /* perfectly right-aligns the header above the badge */
+  text-align: center;
+  /* perfectly centers the header above the badge */
 }
 
 .appointment-table-head span:nth-child(4) {
@@ -1731,9 +1731,9 @@ button {
 
 .appt-card-main {
   display: grid;
-  grid-template-columns: 116px 1px 38px minmax(150px, 1fr) 140px 80px 32px;
-  gap: 12px;
-  padding: 14px 24px;
+  grid-template-columns: 60px auto 1fr 32px;
+  gap: 8px 12px;
+  padding: 14px 20px;
   min-height: 72px;
 }
 
@@ -1744,8 +1744,33 @@ button {
 
 .appt-doctor {
   display: flex;
-  justify-content: flex-end;
-  /* right-aligns the badge cleanly to the edge of the column */
+  justify-content: center;
+  align-items: center;
+}
+
+@media (max-width: 899px) {
+  .appt-time-col {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .patient-group {
+    grid-column: 2 / span 2;
+    grid-row: 1;
+  }
+  .appt-doctor {
+    grid-column: 2;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+  .status-badge {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+  }
+  .appt-actions {
+    grid-column: 4;
+    grid-row: 1 / span 2;
+  }
 }
 
 
@@ -5355,7 +5380,7 @@ body,
 @media (min-width: 900px) {
   .appt-card-main {
     display: grid;
-    grid-template-columns: 100px minmax(0, 1fr) 105px 145px 104px;
+    grid-template-columns: 100px minmax(0, 1fr) 110px 100px 104px;
     align-items: center;
     gap: 16px;
   }
