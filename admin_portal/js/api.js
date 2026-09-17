@@ -29,6 +29,13 @@ const API = (() => {
       ...options,
     });
     if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem(CONFIG.SESSION_KEY);
+        localStorage.removeItem(CONFIG.SESSION_DOCTOR_KEY);
+        sessionStorage.setItem('session_expired', 'true');
+        location.reload();
+        return;
+      }
       const err = await res.text();
       throw new Error(`Supabase error ${res.status}: ${err}`);
     }

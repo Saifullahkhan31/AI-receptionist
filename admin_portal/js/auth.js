@@ -263,4 +263,12 @@
   // ── Init ───────────────────────────────────────
   checkExistingSession();
 
+  if (sessionStorage.getItem('session_expired')) {
+    sessionStorage.removeItem('session_expired');
+    setTimeout(() => {
+      hintEl.textContent = 'Session expired. Please login again.';
+      hintEl.classList.add('error');
+    }, 100);
+  }
+
 })();
