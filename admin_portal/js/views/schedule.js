@@ -177,6 +177,28 @@ const ScheduleView = (() => {
     const avatarColors = ['blue', 'purple', 'coral', 'green', 'orange', 'cyan'];
     const avatarColor = avatarColors[(appt.patient_name || '').length % avatarColors.length];
 
+    const docColors = [
+      { bg: '#edf4ff', text: '#1669d8' },
+      { bg: '#eefaf3', text: '#159447' },
+      { bg: '#fff9e7', text: '#bd8100' },
+      { bg: '#f3e8ff', text: '#7e22ce' },
+      { bg: '#ffe4e6', text: '#e11d48' },
+      { bg: '#e0f2fe', text: '#0369a1' }
+    ];
+    let docColor = docColors[0];
+    
+    let docName = appt.doctor_name || appt.requested_doctor || null;
+    if (typeof TodayView !== 'undefined' && TodayView.doctorDirectory) {
+      const doctor = TodayView.doctorDirectory.get(appt.doctor_id);
+      if (doctor && (doctor.display_name || doctor.name)) docName = doctor.display_name || doctor.name;
+    }
+
+    if (docName) {
+      let hash = 0;
+      for (let i = 0; i < docName.length; i++) hash = docName.charCodeAt(i) + ((hash << 5) - hash);
+      docColor = docColors[Math.abs(hash) % docColors.length];
+    }
+
     const card = document.createElement('div');
     card.className = 'appt-card';
     card.dataset.id = appt.id;
@@ -193,6 +215,11 @@ const ScheduleView = (() => {
             <div class="appt-name">${escape(appt.patient_name)}</div>
             <div class="appt-treatment">${escape(appt.treatment_planned || 'No treatment specified')}</div>
           </div>
+        </div>
+        <div class="appt-doctor">
+          ${docName
+            ? `<span class="status-badge" style="background: ${docColor.bg}; color: ${docColor.text}; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escape(docName)}</span>`
+            : ''}
         </div>
         <button class="status-badge ${badge}" data-appt-id="${escape(appt.id)}" aria-label="Change status">
           ${label}
@@ -212,7 +239,7 @@ const ScheduleView = (() => {
     });
 
     // Tap status badge → open status picker
-    card.querySelector('.status-badge').addEventListener('click', e => {
+    card.querySelector('button.status-badge').addEventListener('click', e => {
       e.stopPropagation();
       if (typeof TodayView !== 'undefined' && TodayView.openStatusPicker) {
         TodayView.openStatusPicker(appt);
@@ -236,16 +263,27 @@ const ScheduleView = (() => {
 
   function renderDetail(appt) {
     const phone = appt.contact_number;
+    let docName = appt.doctor_name || appt.requested_doctor || 'Not assigned';
+    if (typeof TodayView !== 'undefined' && TodayView.doctorDirectory) {
+      const doctor = TodayView.doctorDirectory.get(appt.doctor_id);
+      if (doctor && (doctor.display_name || doctor.name)) docName = doctor.display_name || doctor.name;
+    } else if (typeof doctorDirectory !== 'undefined') {
+      const doctor = doctorDirectory.get(appt.doctor_id);
+      if (doctor && (doctor.display_name || doctor.name)) docName = doctor.display_name || doctor.name;
+    }
+
     return `
       <div class="appt-detail" data-detail-id="${escape(appt.id)}">
-        ${phone ? `
-          <div class="detail-phone">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.38 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.82a16 16 0 0 0 6.27 6.27l1.18-1.18a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-            <a href="tel:${escape(phone)}">${escape(phone)}</a>
-          </div>` : '<div class="detail-phone" style="color:var(--text-muted)">No phone number</div>'}
-        ${appt.notes ? `<div class="detail-notes">${escape(appt.notes)}</div>` : ''}
-        <div class="detail-actions">
-          <button class="btn-detail" data-delete-appt="${escape(appt.id)}">Delete</button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 13px; color: #4a5568;">
+          <div><strong>Patient:</strong> ${escape(appt.patient_name)}</div>
+          <div><strong>Phone:</strong> ${phone ? `<a href="tel:${escape(phone)}" style="color: #1669d8; text-decoration: none;">${escape(phone)}</a>` : '<span style="color:#a0aec0">No phone</span>'}</div>
+          <div><strong>Treatment:</strong> ${escape(appt.treatment_planned || 'Not specified')}</div>
+          <div><strong>Doctor:</strong> ${escape(docName)}</div>
+          ${appt.notes ? `<div style="grid-column: 1 / -1;"><strong>Notes:</strong> ${escape(appt.notes)}</div>` : ''}
+        </div>
+        <div class="detail-actions" style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button class="btn-detail" data-view-appt="${escape(appt.id)}" style="background: white; border: 1px solid #d1d5db; color: #374151;">View Full Details</button>
+          <button class="btn-detail" data-delete-appt="${escape(appt.id)}" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626;">Delete</button>
         </div>
       </div>
     `;
@@ -325,8 +363,17 @@ const ScheduleView = (() => {
   }
 
   bodyEl.addEventListener('click', e => {
-    const btn = e.target.closest('[data-delete-appt]');
-    if (btn) deleteAppt(btn.dataset.deleteAppt);
+    const delBtn = e.target.closest('[data-delete-appt]');
+    if (delBtn) deleteAppt(delBtn.dataset.deleteAppt);
+
+    const viewBtn = e.target.closest('[data-view-appt]');
+    if (viewBtn) {
+      const apptId = viewBtn.dataset.viewAppt;
+      const appt = allAppointments.find(a => String(a.id) === String(apptId));
+      if (appt && typeof TodayView !== 'undefined' && TodayView.openAppointmentView) {
+        TodayView.openAppointmentView(appt);
+      }
+    }
   });
 
   // ── Listen for view switch ───────────────────────
