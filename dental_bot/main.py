@@ -180,7 +180,7 @@ async def admin_me(request: Request):
 
 
 @app.delete("/api/admin/appointments/{appt_id}")
-async def admin_delete_appointment(appt_id: int, request: Request):
+async def admin_delete_appointment(appt_id: str, request: Request):
     """Delete an appointment from Supabase AND Google Calendar."""
     # 1. Verify JWT
     auth = request.headers.get("Authorization", "")
