@@ -120,11 +120,48 @@ async def transcribe_voice_note(audio_id: str) -> str:
 
 # Per-phone asyncio Locks to serialize incoming messages for the same patient
 PHONE_LOCKS: dict[str, asyncio.Lock] = {}
+PHONE_MESSAGE_BUFFERS: dict[str, list[str]] = {}
+PHONE_DEBOUNCE_TASKS: dict[str, asyncio.Task] = {}
+PHONE_SENDER_NAMES: dict[str, str] = {}
+DEBOUNCE_DELAY_SECONDS = 2.0
 
 def get_phone_lock(phone: str) -> asyncio.Lock:
     if phone not in PHONE_LOCKS:
         PHONE_LOCKS[phone] = asyncio.Lock()
     return PHONE_LOCKS[phone]
+
+
+async def _process_debounced_messages(sender_phone: str):
+    """Processes consolidated messages for a sender after debounce timer expires, sending only ONE reply."""
+    try:
+        # Wait for the patient to finish typing/sending rapid follow-up messages
+        await asyncio.sleep(DEBOUNCE_DELAY_SECONDS)
+
+        buffer = PHONE_MESSAGE_BUFFERS.pop(sender_phone, [])
+        sender_name = PHONE_SENDER_NAMES.pop(sender_phone, "Unknown Patient")
+        if not buffer:
+            return
+
+        combined_text = " ".join(t.strip() for t in buffer if t.strip()).strip()
+        if not combined_text:
+            return
+
+        lock = get_phone_lock(sender_phone)
+        async with lock:
+            print(f"[WhatsApp] IN (debounced) {sender_phone}: {combined_text}")
+            reply_text = await asyncio.to_thread(handle_message, sender_phone, combined_text, sender_name)
+            if reply_text:
+                await send_whatsapp_message(sender_phone, reply_text)
+                print(f"[WhatsApp] OUT {sender_phone}: {reply_text}")
+
+    except asyncio.CancelledError:
+        # Newer message arrived from this sender; cancelled to reset debounce timer
+        pass
+    except Exception as e:
+        print(f"[WhatsApp] Error processing debounced messages for {sender_phone}: {e}")
+    finally:
+        if PHONE_DEBOUNCE_TASKS.get(sender_phone) == asyncio.current_task():
+            PHONE_DEBOUNCE_TASKS.pop(sender_phone, None)
 
 
 async def process_message_background(
@@ -136,31 +173,34 @@ async def process_message_background(
     audio_id: str | None,
     loc_info: str | None
 ):
-    """Background task to handle voice transcription, AI processing, and WhatsApp reply safely."""
-    lock = get_phone_lock(sender_phone)
-    async with lock:
-        text = ""
+    """Background task to handle voice transcription, message debouncing, AI processing, and WhatsApp reply safely."""
+    text = ""
 
-        if msg_type == "text":
-            text = text_body.strip()
-        elif msg_type in ("audio", "voice") and audio_id:
-            print(f"[WhatsApp] Processing incoming voice note in background for {sender_phone} (id: {audio_id})")
-            text = await transcribe_voice_note(audio_id)
-        elif msg_type == "location" and loc_info:
-            text = f"[Patient shared location: {loc_info}. Please guide them with clinic address and directions]"
+    if msg_type == "text":
+        text = text_body.strip()
+    elif msg_type in ("audio", "voice") and audio_id:
+        print(f"[WhatsApp] Processing incoming voice note in background for {sender_phone} (id: {audio_id})")
+        text = await transcribe_voice_note(audio_id)
+    elif msg_type == "location" and loc_info:
+        text = f"[Patient shared location: {loc_info}. Please guide them with clinic address and directions]"
 
-        if not text:
-            print(f"[WhatsApp] Empty message text after processing for {sender_phone}. Skipping.")
-            return
+    if not text:
+        print(f"[WhatsApp] Empty message text after processing for {sender_phone}. Skipping.")
+        return
 
-        print(f"[WhatsApp] IN {sender_phone}: {text}")
+    # Buffer the incoming text for this sender
+    if sender_phone not in PHONE_MESSAGE_BUFFERS:
+        PHONE_MESSAGE_BUFFERS[sender_phone] = []
+    PHONE_MESSAGE_BUFFERS[sender_phone].append(text)
+    PHONE_SENDER_NAMES[sender_phone] = sender_name
 
-        # Process conversation through Gemini AI logic in threadpool
-        reply_text = await asyncio.to_thread(handle_message, sender_phone, text, sender_name)
+    # Cancel any active pending debounce task so the timer resets
+    existing_task = PHONE_DEBOUNCE_TASKS.get(sender_phone)
+    if existing_task and not existing_task.done():
+        existing_task.cancel()
 
-        if reply_text:
-            await send_whatsapp_message(sender_phone, reply_text)
-            print(f"[WhatsApp] OUT {sender_phone}: {reply_text}")
+    # Schedule debounced processing task
+    PHONE_DEBOUNCE_TASKS[sender_phone] = asyncio.create_task(_process_debounced_messages(sender_phone))
 
 
 async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks) -> Response:
