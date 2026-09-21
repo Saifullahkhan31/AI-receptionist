@@ -1129,8 +1129,103 @@ def cancel_patient_appointment(phone: str, date_str: str = None, time_str: str =
     return cancelled_dates
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Intent Classification — Filters business pitches before any booking logic
+# ─────────────────────────────────────────────────────────────────────────────
+
+_INTENT_CLASSIFICATION_PROMPT = """You are a strict intent classifier for a dental clinic's WhatsApp line (Centre of Modern Dentistry, Karachi).
+Your ONLY job is to classify the incoming message into exactly ONE of these two categories:
+
+1. "patient_inquiry":
+   - Any genuine dental or health-related question, booking request, or appointment inquiry.
+   - Includes: tooth pain, cleaning, braces, root canal, consultation, clinic hours, location, pricing, doctor availability, any dental procedure, follow-ups on existing appointments.
+   - CRITICAL RULE: If the sender mentions social media (e.g., "I found your clinic on Instagram/Facebook/TikTok/Google") as how they found the clinic but their actual goal is dental care, this is STILL "patient_inquiry".
+   - When in doubt, default to "patient_inquiry" to avoid blocking real patients.
+
+2. "business_pitch":
+   - The sender is trying to sell a service or propose a business deal unrelated to dental care.
+   - Includes: marketing agencies, SEO services, social media management, influencer collaborations, website design, software/SaaS sales, B2B vendor pitches, partnership proposals, bulk SMS services, or any non-dental commercial offer.
+   - CRITICAL RULE: Even if a business pitch pretends to also want an appointment (e.g., "We can grow your clinic and also I want to book an appointment"), if the CORE intent is clearly selling a service, classify as "business_pitch".
+
+FEW-SHOT EXAMPLES:
+Message: "We can grow your Instagram followers, want a free audit?" → "business_pitch"
+Message: "Hi I saw your clinic on Instagram, can I book a cleaning?" → "patient_inquiry"
+Message: "I run a marketing agency, can we set up a call about your online presence?" → "business_pitch"
+Message: "My tooth has been hurting for 2 days, do you have any slots this week?" → "patient_inquiry"
+Message: "Do you need website design or SEO optimization for your clinic?" → "business_pitch"
+Message: "Salam, clinic kahan hai aur root canal kitne ka hota hai?" → "patient_inquiry"
+Message: "Hello" → "patient_inquiry"
+Message: "Hi" → "patient_inquiry"
+Message: "I can get you 50 new patients per month through Facebook ads" → "business_pitch"
+Message: "Dr. Mustafa clinic par kab available hotay hain?" → "patient_inquiry"
+Message: "We offer WhatsApp bulk messaging services for businesses" → "business_pitch"
+Message: "Actually I also want to book an appointment to discuss your marketing" → "business_pitch"
+Message: "Mujhe appointment chahiye" → "patient_inquiry"
+Message: "Assalamualaikum, is the clinic open today?" → "patient_inquiry"
+
+Return ONLY a JSON object in this exact format with no other text:
+{"classification": "patient_inquiry" | "business_pitch"}"""
+
+
+def classify_message_intent(message: str) -> str:
+    """
+    Uses Gemini to classify a WhatsApp message as 'patient_inquiry' or 'business_pitch'.
+    Returns 'patient_inquiry' by default on any error so real patients are never blocked.
+    """
+    if not gemini_client:
+        return "patient_inquiry"
+
+    try:
+        models_to_try = get_active_gemini_models()
+        for g_model in models_to_try:
+            try:
+                resp = gemini_client.models.generate_content(
+                    model=g_model,
+                    contents=f"{_INTENT_CLASSIFICATION_PROMPT}\n\nMessage to classify: \"{message}\"",
+                    config=types.GenerateContentConfig(
+                        temperature=0.0,
+                        max_output_tokens=64,
+                    )
+                )
+                if resp and resp.text:
+                    raw = resp.text.strip()
+                    parsed = json.loads(raw)
+                    classification = parsed.get("classification", "patient_inquiry")
+                    if classification in ("patient_inquiry", "business_pitch"):
+                        print(f"[Intent Filter] Classified as '{classification}': {message[:80]}")
+                        return classification
+                    return "patient_inquiry"
+            except (json.JSONDecodeError, KeyError):
+                # JSON parse failed — default to patient_inquiry to be safe
+                return "patient_inquiry"
+            except Exception as model_err:
+                err_str = str(model_err).lower()
+                if "not found" in err_str or "no longer available" in err_str or "deprecated" in err_str:
+                    mark_model_failed(g_model, permanent=True)
+                print(f"[Intent Filter] Model {g_model} failed: {model_err}. Trying next...")
+    except Exception as e:
+        print(f"[Intent Filter] Classification error: {e}. Defaulting to patient_inquiry.")
+
+    return "patient_inquiry"
+
+
+def log_filtered_message(phone: str, message: str, classification: str) -> None:
+    """Logs business_pitch messages to Supabase filtered_messages table for periodic review."""
+    try:
+        supabase.table("filtered_messages").insert({
+            "sender_number": phone,
+            "message_text": message,
+            "classification": classification,
+        }).execute()
+        print(f"[Intent Filter] Logged '{classification}' message from {phone} to Supabase.")
+    except Exception as e:
+        # Never let a logging failure break the main flow
+        print(f"[Intent Filter] Warning: Failed to log filtered message to Supabase: {e}")
+
+
 def handle_message(phone: str, incoming_message: str, patient_name: str = "Unknown Patient") -> str:
     """Main entry point. Takes the sender's phone + message, returns reply text."""
+
     # ── 1. Check if the sender is a Doctor ──────────────────────────────────
     sender_clean = normalize_phone(phone)
     is_doctor = False
@@ -1171,13 +1266,25 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
             f"*(This number is designated as the Doctor recipient)*"
         )
 
-    # ── 2. Standard Patient Flow ─────────────────────────────────────────────
+    # ── 2. Intent Classification — Block business pitches before any booking logic ──
+    intent = classify_message_intent(incoming_message)
+    if intent == "business_pitch":
+        log_filtered_message(phone, incoming_message, "business_pitch")
+        business_contact = os.getenv("CLINIC_BUSINESS_CONTACT", "+92 320 2042302")
+        return (
+            f"Thank you for reaching out! This WhatsApp line is dedicated to patient appointments only. "
+            f"For business inquiries, please contact the clinic directly at {business_contact}. "
+            f"We appreciate your understanding."
+        )
+
+    # ── 3. Standard Patient Flow ─────────────────────────────────────────────
     patient = get_patient(phone)
-    
+
     # If this is a brand new patient, register them automatically!
     if not patient:
         register_patient(phone, patient_name)
         patient = get_patient(phone) # Re-fetch so we have their dictionary properly loaded
+
 
     # Get busy periods from Google Calendar
     busy_periods = gcal.get_busy_periods()
