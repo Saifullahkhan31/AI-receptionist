@@ -1188,68 +1188,52 @@ Return ONLY a JSON object in this exact format with no other text:
 
 def classify_message_intent(message: str) -> str:
     """
-    Uses Gemini to classify a WhatsApp message as 'patient_inquiry' or 'business_pitch'.
-    Returns 'patient_inquiry' by default on any error so real patients are never blocked.
+    Classifies a WhatsApp message as 'patient_inquiry' or 'business_pitch'.
+    Uses a fast keyword-based approach — no API call, zero failure risk.
+    Defaults to 'patient_inquiry' if no business keywords are found,
+    so real patients are never accidentally blocked.
     """
-    if not gemini_client:
-        return "patient_inquiry"
+    msg_lower = message.lower().strip()
 
-    try:
-        models_to_try = get_active_gemini_models()
-        for g_model in models_to_try:
-            try:
-                resp = gemini_client.models.generate_content(
-                    model=g_model,
-                    contents=f"{_INTENT_CLASSIFICATION_PROMPT}\n\nMessage to classify: \"{message}\"",
-                    config=types.GenerateContentConfig(
-                        temperature=0.0,
-                        max_output_tokens=64,
-                    )
-                )
-                if resp and resp.text:
-                    raw = resp.text.strip()
-                    print(f"[Intent Filter] Raw Gemini response: {repr(raw)}")
+    # ── Business pitch keyword sets ───────────────────────────────────────────
+    # English keywords
+    business_keywords_en = [
+        "marketing", "agency", "promotion", "promotional", "promote",
+        "social media", "instagram followers", "facebook ads", "google ads",
+        "seo", "search engine", "digital marketing", "content creation",
+        "influencer", "collaboration", "partnership", "sponsor",
+        "website design", "web development", "bulk sms", "bulk message",
+        "reels", "video production", "promo video", "advertisement",
+        "brand awareness", "lead generation", "our team", "our services",
+        "we offer", "we provide", "we can grow", "we can help your clinic",
+        "business proposal", "free audit", "free consultation for your business",
+        "upgrade your clinic", "grow your clinic", "manage your clinic",
+    ]
 
-                    # ── Strip markdown code fences if Gemini wraps in ```json ... ``` ──
-                    clean = raw
-                    if clean.startswith("```"):
-                        # Remove opening fence (```json or ```)
-                        clean = re.sub(r"^```[a-z]*\n?", "", clean)
-                        # Remove closing fence
-                        clean = re.sub(r"\n?```$", "", clean)
-                        clean = clean.strip()
+    # Roman Urdu / mixed keywords
+    business_keywords_urdu = [
+        "promotion videos", "promoshnal", "hamari team", "hamaari team",
+        "hamari agency", "hamaari agency", "hamara team", "apni team",
+        "hum banate hain", "ham banate hain", "hum promote", "ham promote",
+        "social media handle", "clinic ko promote", "clinic ki marketing",
+        "digital marketing", "reels banate", "videos banate", "video banate",
+        "content banate", "hamaari services", "hamari services",
+        "hum service", "ham service", "aap ki clinic", "aap ke clinic",
+        "aapki clinic ko", "marketing karna", "promotion karna",
+        "online presence", "followers badhana", "followers barhaana",
+    ]
 
-                    # ── Try JSON parse ────────────────────────────────────────────
-                    try:
-                        parsed = json.loads(clean)
-                        classification = parsed.get("classification", "patient_inquiry")
-                        if classification in ("patient_inquiry", "business_pitch"):
-                            print(f"[Intent Filter] Classified as '{classification}': {message[:80]}")
-                            return classification
-                    except (json.JSONDecodeError, KeyError) as json_err:
-                        print(f"[Intent Filter] JSON parse failed: {json_err} | raw='{raw}' | clean='{clean}'")
+    all_keywords = business_keywords_en + business_keywords_urdu
 
-                    # ── Plain-text fallback: scan the raw text for the category word ──
-                    lower = raw.lower()
-                    if "business_pitch" in lower:
-                        print(f"[Intent Filter] Fallback: detected 'business_pitch' in raw text")
-                        return "business_pitch"
-                    if "patient_inquiry" in lower:
-                        print(f"[Intent Filter] Fallback: detected 'patient_inquiry' in raw text")
-                        return "patient_inquiry"
+    for kw in all_keywords:
+        if kw in msg_lower:
+            print(f"[Intent Filter] Business pitch detected via keyword '{kw}': {message[:80]}")
+            return "business_pitch"
 
-                    print(f"[Intent Filter] Could not extract classification from: {repr(raw)}")
-                    return "patient_inquiry"
-
-            except Exception as model_err:
-                err_str = str(model_err).lower()
-                if "not found" in err_str or "no longer available" in err_str or "deprecated" in err_str:
-                    mark_model_failed(g_model, permanent=True)
-                print(f"[Intent Filter] Model {g_model} failed: {model_err}. Trying next...")
-    except Exception as e:
-        print(f"[Intent Filter] Classification error: {e}. Defaulting to patient_inquiry.")
-
+    print(f"[Intent Filter] Classified as 'patient_inquiry': {message[:80]}")
     return "patient_inquiry"
+
+
 
 
 
@@ -1352,8 +1336,9 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
 
     # ── 2. Blocklist Check — Instantly reject permanently blocked numbers ────────
     if is_number_blocked(phone):
-        print(f"[Blocklist] Blocked number attempted contact: {phone}")
-        return "We do not promote our clinic through WhatsApp. This service is for patient appointments only."
+        print(f"[Blocklist] Silently dropping message from blocked number: {phone}")
+        return ""  # Empty string = no reply sent at all
+
 
     # ── 3. Intent Classification — Block business pitches before any booking logic ──
     intent = classify_message_intent(incoming_message)
