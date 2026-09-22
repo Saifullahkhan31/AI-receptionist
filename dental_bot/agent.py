@@ -1223,6 +1223,46 @@ def log_filtered_message(phone: str, message: str, classification: str) -> None:
         print(f"[Intent Filter] Warning: Failed to log filtered message to Supabase: {e}")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Blocklist — Permanently blocked numbers (spammers / business promoters)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def is_number_blocked(phone: str) -> bool:
+    """
+    Returns True if the phone number is in the blocked_numbers table.
+    Uses normalized digits for matching. Fails safe (returns False) on any error.
+    """
+    try:
+        phone_clean = normalize_phone(phone)
+        # Check both the normalized version and last-10-digits variant
+        res = supabase.table("blocked_numbers").select("id").eq("phone_number", phone_clean).limit(1).execute()
+        if res.data:
+            return True
+        # Also try raw phone as stored (in case it was inserted with different format)
+        res2 = supabase.table("blocked_numbers").select("id").eq("phone_number", phone).limit(1).execute()
+        return bool(res2.data)
+    except Exception as e:
+        print(f"[Blocklist] Warning: Could not check blocklist for {phone}: {e}")
+        return False  # Fail safe — never block a real patient due to a DB error
+
+
+def add_to_blocklist(phone: str, reason: str = "business_pitch") -> None:
+    """
+    Permanently adds a phone number to the blocked_numbers table.
+    Called automatically when a business_pitch is detected so future messages
+    are blocked instantly without any AI classification call.
+    """
+    try:
+        phone_clean = normalize_phone(phone)
+        supabase.table("blocked_numbers").upsert(
+            {"phone_number": phone_clean, "reason": reason},
+            on_conflict="phone_number"
+        ).execute()
+        print(f"[Blocklist] Permanently blocked: {phone_clean} | Reason: {reason}")
+    except Exception as e:
+        print(f"[Blocklist] Warning: Failed to add {phone} to blocklist: {e}")
+
+
 def handle_message(phone: str, incoming_message: str, patient_name: str = "Unknown Patient") -> str:
     """Main entry point. Takes the sender's phone + message, returns reply text."""
 
@@ -1266,16 +1306,19 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
             f"*(This number is designated as the Doctor recipient)*"
         )
 
-    # ── 2. Intent Classification — Block business pitches before any booking logic ──
+    # ── 2. Blocklist Check — Instantly reject permanently blocked numbers ────────
+    if is_number_blocked(phone):
+        print(f"[Blocklist] Blocked number attempted contact: {phone}")
+        return "This service is unavailable."
+
+    # ── 3. Intent Classification — Block business pitches before any booking logic ──
     intent = classify_message_intent(incoming_message)
     if intent == "business_pitch":
+        # Log to filtered_messages for audit trail
         log_filtered_message(phone, incoming_message, "business_pitch")
-        business_contact = os.getenv("CLINIC_BUSINESS_CONTACT", "+92 320 2042302")
-        return (
-            f"Thank you for reaching out! This WhatsApp line is dedicated to patient appointments only. "
-            f"For business inquiries, please contact the clinic directly at {business_contact}. "
-            f"We appreciate your understanding."
-        )
+        # Permanently block — all future messages from this number will be instantly rejected
+        add_to_blocklist(phone, reason="business_pitch — auto-blocked after promotional outreach")
+        return "This service is unavailable."
 
     # ── 3. Standard Patient Flow ─────────────────────────────────────────────
     patient = get_patient(phone)
