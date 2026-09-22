@@ -1144,27 +1144,46 @@ Your ONLY job is to classify the incoming message into exactly ONE of these two 
 
 2. "business_pitch":
    - The sender is trying to sell a service or propose a business deal unrelated to dental care.
-   - Includes: marketing agencies, SEO services, social media management, influencer collaborations, website design, software/SaaS sales, B2B vendor pitches, partnership proposals, bulk SMS services, or any non-dental commercial offer.
-   - CRITICAL RULE: Even if a business pitch pretends to also want an appointment (e.g., "We can grow your clinic and also I want to book an appointment"), if the CORE intent is clearly selling a service, classify as "business_pitch".
+   - Includes: marketing agencies, SEO services, social media management, influencer collaborations, video production, promotion videos, content creation teams, website design, software/SaaS sales, B2B vendor pitches, partnership proposals, bulk SMS services, or any non-dental commercial offer.
+   - CRITICAL RULE: Even if a business pitch mentions "visiting the clinic" or "meeting the management" — if the CORE intent is to sell or pitch a service (video production, marketing, promotions, social media), classify as "business_pitch". A real patient never says "hamaari team hai" (we have a team) or "hum promotion videos banate hain" (we make promo videos).
+   - CRITICAL RULE: Any message mentioning "team", "agency", "promotion videos", "content", "reels", "social media management", "digital marketing", "hum banate hain", "hamaari services" is "business_pitch".
 
-FEW-SHOT EXAMPLES:
-Message: "We can grow your Instagram followers, want a free audit?" → "business_pitch"
-Message: "Hi I saw your clinic on Instagram, can I book a cleaning?" → "patient_inquiry"
-Message: "I run a marketing agency, can we set up a call about your online presence?" → "business_pitch"
-Message: "My tooth has been hurting for 2 days, do you have any slots this week?" → "patient_inquiry"
-Message: "Do you need website design or SEO optimization for your clinic?" → "business_pitch"
-Message: "Salam, clinic kahan hai aur root canal kitne ka hota hai?" → "patient_inquiry"
-Message: "Hello" → "patient_inquiry"
-Message: "Hi" → "patient_inquiry"
-Message: "I can get you 50 new patients per month through Facebook ads" → "business_pitch"
-Message: "Dr. Mustafa clinic par kab available hotay hain?" → "patient_inquiry"
-Message: "We offer WhatsApp bulk messaging services for businesses" → "business_pitch"
-Message: "Actually I also want to book an appointment to discuss your marketing" → "business_pitch"
-Message: "Mujhe appointment chahiye" → "patient_inquiry"
-Message: "Assalamualaikum, is the clinic open today?" → "patient_inquiry"
+KEY DISTINCTION:
+- Patient: talks about their OWN dental problem, appointment, pain, procedure, or asks about clinic services FOR THEMSELVES.
+- Business pitch: talks about THEIR team, THEIR services, THEIR offer, wanting to promote/market/create content FOR the clinic.
+
+FEW-SHOT EXAMPLES (English):
+Message: "We can grow your Instagram followers, want a free audit?" -> "business_pitch"
+Message: "Hi I saw your clinic on Instagram, can I book a cleaning?" -> "patient_inquiry"
+Message: "I run a marketing agency, can we set up a call about your online presence?" -> "business_pitch"
+Message: "My tooth has been hurting for 2 days, do you have any slots this week?" -> "patient_inquiry"
+Message: "Do you need website design or SEO optimization for your clinic?" -> "business_pitch"
+Message: "I can get you 50 new patients per month through Facebook ads" -> "business_pitch"
+Message: "We offer WhatsApp bulk messaging services for businesses" -> "business_pitch"
+Message: "Actually I also want to book an appointment to discuss your marketing" -> "business_pitch"
+Message: "We make promotion videos and have a team, can we visit your clinic?" -> "business_pitch"
+Message: "Our video production team wants to visit your clinic and discuss a collaboration" -> "business_pitch"
+
+FEW-SHOT EXAMPLES (Roman Urdu):
+Message: "Ham promotion videos banate Hain hamari aik team hai or apka clinic visit Karna chahte hain" -> "business_pitch"
+Message: "Salam, clinic kahan hai aur root canal kitne ka hota hai?" -> "patient_inquiry"
+Message: "Dr. Mustafa clinic par kab available hotay hain?" -> "patient_inquiry"
+Message: "Mujhe appointment chahiye" -> "patient_inquiry"
+Message: "Assalamualaikum, is the clinic open today?" -> "patient_inquiry"
+Message: "Hum aap ki clinic ki social media handle kar sakte hain" -> "business_pitch"
+Message: "Hamari digital marketing agency hai, aap ki clinic ko promote kar sakte hain" -> "business_pitch"
+Message: "Hum reels aur videos banate hain clinics ke liye, interested hain?" -> "business_pitch"
+Message: "Apni team k saath clinic aana chahte hain promotion ke liye" -> "business_pitch"
+Message: "Mera dant dard kar raha hai, doctor available hain?" -> "patient_inquiry"
+Message: "Hello" -> "patient_inquiry"
+Message: "Hi" -> "patient_inquiry"
+Message: "Khuda hafiz" -> "patient_inquiry"
+Message: "Great" -> "patient_inquiry"
+Message: "Okay" -> "patient_inquiry"
 
 Return ONLY a JSON object in this exact format with no other text:
 {"classification": "patient_inquiry" | "business_pitch"}"""
+
 
 
 def classify_message_intent(message: str) -> str:
