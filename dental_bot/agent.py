@@ -1208,15 +1208,39 @@ def classify_message_intent(message: str) -> str:
                 )
                 if resp and resp.text:
                     raw = resp.text.strip()
-                    parsed = json.loads(raw)
-                    classification = parsed.get("classification", "patient_inquiry")
-                    if classification in ("patient_inquiry", "business_pitch"):
-                        print(f"[Intent Filter] Classified as '{classification}': {message[:80]}")
-                        return classification
+                    print(f"[Intent Filter] Raw Gemini response: {repr(raw)}")
+
+                    # ── Strip markdown code fences if Gemini wraps in ```json ... ``` ──
+                    clean = raw
+                    if clean.startswith("```"):
+                        # Remove opening fence (```json or ```)
+                        clean = re.sub(r"^```[a-z]*\n?", "", clean)
+                        # Remove closing fence
+                        clean = re.sub(r"\n?```$", "", clean)
+                        clean = clean.strip()
+
+                    # ── Try JSON parse ────────────────────────────────────────────
+                    try:
+                        parsed = json.loads(clean)
+                        classification = parsed.get("classification", "patient_inquiry")
+                        if classification in ("patient_inquiry", "business_pitch"):
+                            print(f"[Intent Filter] Classified as '{classification}': {message[:80]}")
+                            return classification
+                    except (json.JSONDecodeError, KeyError) as json_err:
+                        print(f"[Intent Filter] JSON parse failed: {json_err} | raw='{raw}' | clean='{clean}'")
+
+                    # ── Plain-text fallback: scan the raw text for the category word ──
+                    lower = raw.lower()
+                    if "business_pitch" in lower:
+                        print(f"[Intent Filter] Fallback: detected 'business_pitch' in raw text")
+                        return "business_pitch"
+                    if "patient_inquiry" in lower:
+                        print(f"[Intent Filter] Fallback: detected 'patient_inquiry' in raw text")
+                        return "patient_inquiry"
+
+                    print(f"[Intent Filter] Could not extract classification from: {repr(raw)}")
                     return "patient_inquiry"
-            except (json.JSONDecodeError, KeyError):
-                # JSON parse failed — default to patient_inquiry to be safe
-                return "patient_inquiry"
+
             except Exception as model_err:
                 err_str = str(model_err).lower()
                 if "not found" in err_str or "no longer available" in err_str or "deprecated" in err_str:
@@ -1226,6 +1250,7 @@ def classify_message_intent(message: str) -> str:
         print(f"[Intent Filter] Classification error: {e}. Defaulting to patient_inquiry.")
 
     return "patient_inquiry"
+
 
 
 def log_filtered_message(phone: str, message: str, classification: str) -> None:
@@ -1328,7 +1353,7 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
     # ── 2. Blocklist Check — Instantly reject permanently blocked numbers ────────
     if is_number_blocked(phone):
         print(f"[Blocklist] Blocked number attempted contact: {phone}")
-        return "This service is unavailable."
+        return "We do not promote our clinic through WhatsApp. This service is for patient appointments only."
 
     # ── 3. Intent Classification — Block business pitches before any booking logic ──
     intent = classify_message_intent(incoming_message)
@@ -1337,7 +1362,7 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
         log_filtered_message(phone, incoming_message, "business_pitch")
         # Permanently block — all future messages from this number will be instantly rejected
         add_to_blocklist(phone, reason="business_pitch — auto-blocked after promotional outreach")
-        return "This service is unavailable."
+        return "We do not promote our clinic. This number is for patient appointments only."
 
     # ── 3. Standard Patient Flow ─────────────────────────────────────────────
     patient = get_patient(phone)
