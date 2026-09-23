@@ -109,6 +109,49 @@ const API = (() => {
       return res.json();
     },
 
+    async cancelAppointment(id, reason, suggestedSlot) {
+      const backendUrl = CONFIG.RAILWAY_API_URL;
+      const token = localStorage.getItem(CONFIG.SESSION_KEY);
+      const res = await fetch(`${backendUrl}/api/admin/appointments/${id}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason, suggested_slot: suggestedSlot })
+      });
+      if (!res.ok) throw new Error('Failed to cancel appointment');
+      return res.json();
+    },
+
+    async confirmAppointment(id) {
+      const backendUrl = CONFIG.RAILWAY_API_URL;
+      const token = localStorage.getItem(CONFIG.SESSION_KEY);
+      const res = await fetch(`${backendUrl}/api/admin/appointments/${id}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error('Failed to confirm appointment');
+      return res.json();
+    },
+
+    async getAvailableSlots(date, doctorId) {
+      const backendUrl = CONFIG.RAILWAY_API_URL;
+      const token = localStorage.getItem(CONFIG.SESSION_KEY);
+      const url = new URL(`${backendUrl}/api/admin/slots`);
+      url.searchParams.append('date', date);
+      if (doctorId) url.searchParams.append('doctor_id', doctorId);
+      
+      const res = await fetch(url.toString(), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch slots');
+      const data = await res.json();
+      return data.slots || [];
+    },
+
     // ── Patients ─────────────────────────────────
     async searchPatients(query) {
       const q = encodeURIComponent(query);

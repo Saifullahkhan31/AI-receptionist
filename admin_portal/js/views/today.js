@@ -54,7 +54,6 @@ const TodayView = (() => {
 
   // Status picker modal
   const modalStatus = document.getElementById('modal-status');
-  const statusName = document.getElementById('status-sheet-name');
   const statusOpts = document.getElementById('status-options');
 
   // Appointment details modal
@@ -82,23 +81,25 @@ const TodayView = (() => {
     return { h: h12 + ':' + String(m).padStart(2, '0'), ampm };
   }
 
-  // C6: treat 'Confirmed' (bot-saved status) same as 'Tentative Appt' (Scheduled)
+  // C6: treat 'Confirmed' as distinct status now
   function badgeClass(status) {
     if (!status) return 'badge-tentative';
     const s = status.toLowerCase();
     if (s === 'show') return 'badge-show';
+    if (s === 'confirmed') return 'badge-confirmed';
     if (s === 'no show') return 'badge-noshow';
     if (s.includes('cancel') || s.includes('postpone')) return 'badge-cancel';
-    return 'badge-tentative'; // covers 'Confirmed', 'Tentative Appt', ''
+    return 'badge-tentative'; // covers 'Tentative Appt', ''
   }
 
   function badgeLabel(status) {
     if (!status) return 'Scheduled';
     const s = status.toLowerCase();
     if (s === 'show') return 'Arrived';
+    if (s === 'confirmed') return 'Confirmed';
     if (s === 'no show') return 'Did Not Arrive';
     if (s.includes('cancel') || s.includes('postpone')) return 'Cancelled';
-    return 'Scheduled'; // covers 'Confirmed', 'Tentative Appt', ''
+    return 'Scheduled'; // covers 'Tentative Appt', ''
   }
 
   function formatAppointmentDate(dateStr) {
@@ -207,7 +208,7 @@ const TodayView = (() => {
     // Tap status badge → open status picker
     card.querySelector('button.status-badge').addEventListener('click', e => {
       e.stopPropagation();
-      openStatusPicker(appt);
+      openStatusPicker(appt, e.target);
     });
 
     card.querySelector('.appt-view').addEventListener('click', e => {
@@ -409,9 +410,52 @@ const TodayView = (() => {
     viewTarget = null;
   }
 
-  function openStatusPicker(appt) {
+  function openStatusPicker(appt, anchorEl) {
+    const currentStatus = appt.status ? appt.status.toLowerCase() : '';
+    
+    if (currentStatus.includes('cancel') || currentStatus.includes('postpone')) {
+      alert("This appointment is cancelled and cannot be modified.");
+      return;
+    }
+
+    if (currentStatus === 'show' && appt.appointment_time) {
+      const apptDateTime = new Date(`${appt.appointment_date}T${appt.appointment_time}`);
+      const now = new Date();
+      if (now - apptDateTime > 60 * 60 * 1000) {
+         alert("Cannot change 'Arrived' status after 1 hour from the appointment time.");
+         return;
+      }
+    }
+
     statusTarget = appt;
-    statusName.textContent = appt.patient_name;
+
+    // Show/Hide buttons based on current status
+    const btnArrived = document.getElementById('status-show');
+    const btnConfirmed = document.getElementById('status-confirmed');
+    const btnScheduled = document.getElementById('status-tentative');
+    const btnNoShow = document.getElementById('status-noshow');
+    const btnCancel = document.getElementById('status-cancel');
+
+    [btnArrived, btnConfirmed, btnScheduled, btnNoShow, btnCancel].forEach(b => b.hidden = true);
+
+    if (!currentStatus || currentStatus === 'tentative appt' || currentStatus === 'confirmed') {
+      btnArrived.hidden = false;
+      btnNoShow.hidden = false;
+      btnCancel.hidden = false;
+      if (currentStatus !== 'confirmed') btnConfirmed.hidden = false;
+    } else if (currentStatus === 'show') {
+      btnScheduled.hidden = false;
+      btnConfirmed.hidden = false;
+    } else if (currentStatus === 'no show') {
+      btnScheduled.hidden = false;
+    }
+
+    const rect = anchorEl.getBoundingClientRect();
+    modalStatus.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+    // try to align center, or left if not enough space
+    let leftPos = rect.left + window.scrollX - (140 - rect.width)/2; // 140 is min-width
+    if (leftPos < 10) leftPos = 10;
+    modalStatus.style.left = leftPos + 'px';
     modalStatus.hidden = false;
   }
 
@@ -420,21 +464,138 @@ const TodayView = (() => {
     statusTarget = null;
   }
 
+  // Cancellation Modal Elements
+  const modalCancel = document.getElementById('modal-cancel-confirm');
+  const formCancel = document.getElementById('form-cancel-appt');
+  const cancelReason = document.getElementById('cancel-reason');
+  const btnFetchSlots = document.getElementById('btn-fetch-slots');
+  const suggestedSlotValue = document.getElementById('suggested-slot-value');
+  const suggestedSlotDisplay = document.getElementById('suggested-slot-display');
+  const availableSlotsDropdown = document.getElementById('available-slots-dropdown');
+  let cancelTargetAppt = null;
+
+  function openCancelModal(appt) {
+    cancelTargetAppt = appt;
+    cancelReason.value = '';
+    suggestedSlotValue.value = '';
+    suggestedSlotDisplay.textContent = 'No slot selected';
+    availableSlotsDropdown.hidden = true;
+    modalCancel.hidden = false;
+  }
+
+  function closeCancelModal() {
+    modalCancel.hidden = true;
+    cancelTargetAppt = null;
+  }
+
+  document.getElementById('cancel-cancel-appt').addEventListener('click', closeCancelModal);
+  modalCancel.addEventListener('click', e => {
+    if (e.target === modalCancel) closeCancelModal();
+  });
+
+  document.querySelectorAll('.btn-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      cancelReason.value = chip.dataset.reason;
+    });
+  });
+
+  btnFetchSlots.addEventListener('click', async () => {
+    if (availableSlotsDropdown.hidden === false) {
+      availableSlotsDropdown.hidden = true;
+      return;
+    }
+    availableSlotsDropdown.innerHTML = 'Loading slots...';
+    availableSlotsDropdown.hidden = false;
+    try {
+      const slots = await API.getAvailableSlots(cancelTargetAppt.appointment_date, cancelTargetAppt.doctor_id);
+      availableSlotsDropdown.innerHTML = '';
+      if (!slots || slots.length === 0) {
+        availableSlotsDropdown.innerHTML = 'No slots available.';
+        return;
+      }
+      slots.forEach(slot => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'status-opt status-opt--amber';
+        btn.style.width = '100%';
+        btn.style.marginBottom = '4px';
+        const dateObj = new Date(slot);
+        btn.textContent = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        btn.addEventListener('click', () => {
+          suggestedSlotValue.value = slot;
+          suggestedSlotDisplay.textContent = btn.textContent;
+          availableSlotsDropdown.hidden = true;
+        });
+        availableSlotsDropdown.appendChild(btn);
+      });
+    } catch (err) {
+      availableSlotsDropdown.innerHTML = 'Failed to fetch slots.';
+    }
+  });
+
+  formCancel.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!cancelTargetAppt) return;
+    const reason = cancelReason.value;
+    const suggestedSlot = suggestedSlotValue.value || null;
+    const id = cancelTargetAppt.id;
+    const btn = document.getElementById('btn-confirm-cancel');
+    btn.textContent = 'Cancelling...';
+    btn.disabled = true;
+
+    try {
+      await API.cancelAppointment(id, reason, suggestedSlot);
+      cancelTargetAppt.status = 'Appt Cancel/Postpone';
+      render();
+      if (typeof ScheduleView !== 'undefined' && document.getElementById('view-schedule').classList.contains('active-view')) {
+        ScheduleView.reload();
+      }
+      closeCancelModal();
+    } catch (err) {
+      console.error('Cancellation failed:', err);
+      alert('Failed to cancel appointment. Check console.');
+    } finally {
+      btn.textContent = 'Confirm Cancellation';
+      btn.disabled = false;
+    }
+  });
+
   statusOpts.addEventListener('click', async e => {
     const btn = e.target.closest('.status-opt');
     if (!btn || !statusTarget) return;
 
     const newStatus = btn.dataset.status;
-    const id = statusTarget.id;
+    const appt = statusTarget;
+    const id = appt.id;
 
     closeStatusPicker();
 
-    // Optimistic UI — update immediately without waiting for server
-    const appt = appointments.find(a => a.id === id);
-    if (appt) {
-      appt.status = newStatus;
-      render(); // instant visual update
+    if (newStatus === 'Appt Cancel/Postpone') {
+      openCancelModal(appt);
+      return;
     }
+
+    if (newStatus === 'Confirmed') {
+      const oldStatus = appt.status;
+      appt.status = newStatus;
+      render();
+      try {
+        await API.confirmAppointment(id);
+        if (typeof ScheduleView !== 'undefined' && document.getElementById('view-schedule').classList.contains('active-view')) {
+          ScheduleView.reload();
+        }
+      } catch (err) {
+        console.error('Confirmation failed:', err);
+        appt.status = oldStatus;
+        render();
+      }
+      return;
+    }
+
+    // Optimistic UI — update immediately without waiting for server
+    const oldStatus = appt.status;
+    appt.status = newStatus;
+    render(); // instant visual update
 
     // Save to Supabase in background
     try {
@@ -445,13 +606,16 @@ const TodayView = (() => {
     } catch (err) {
       console.error('[TODAY] Status update failed:', err);
       // Revert on failure
-      await load();
+      appt.status = oldStatus;
+      render();
     }
   });
 
-  // Close status modal on backdrop tap
-  modalStatus.addEventListener('click', e => {
-    if (e.target === modalStatus) closeStatusPicker();
+  // Close status modal on outside tap
+  document.addEventListener('click', e => {
+    if (!modalStatus.hidden && !modalStatus.contains(e.target) && !e.target.closest('.status-badge') && !e.target.closest('#update-appt-status')) {
+      closeStatusPicker();
+    }
   });
 
   closeViewBtn.addEventListener('click', closeAppointmentView);
@@ -463,7 +627,8 @@ const TodayView = (() => {
     if (!viewTarget) return;
     const target = viewTarget;
     closeAppointmentView();
-    openStatusPicker(target);
+    // setTimeout to avoid closing immediately from outside tap logic
+    setTimeout(() => openStatusPicker(target, updateViewStatusBtn), 10);
   });
 
   // ── Add Appointment ─────────────────────────────

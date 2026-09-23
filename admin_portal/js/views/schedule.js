@@ -242,7 +242,7 @@ const ScheduleView = (() => {
     card.querySelector('button.status-badge').addEventListener('click', e => {
       e.stopPropagation();
       if (typeof TodayView !== 'undefined' && TodayView.openStatusPicker) {
-        TodayView.openStatusPicker(appt);
+        TodayView.openStatusPicker(appt, e.target);
       }
     });
 

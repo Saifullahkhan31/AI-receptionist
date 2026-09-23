@@ -412,19 +412,14 @@
     </div>
   </div>
 
-  <!-- STATUS PICKER (Bottom Sheet) -->
-  <div id="modal-status" class="modal-overlay" hidden aria-modal="true" role="dialog">
-    <div class="bottom-sheet bottom-sheet--sm">
-      <div class="sheet-handle"></div>
-      <h2 class="sheet-title" id="status-sheet-name">Update Status</h2>
-      <div class="status-options" id="status-options">
-        <button class="status-opt status-opt--green" data-status="Show" id="status-show">Arrived</button>
-        <button class="status-opt status-opt--amber" data-status="Tentative Appt"
-          id="status-tentative">Scheduled</button>
-        <button class="status-opt status-opt--red" data-status="No Show" id="status-noshow">Did Not Arrive</button>
-        <button class="status-opt status-opt--grey" data-status="Appt Cancel/Postpone"
-          id="status-cancel">Cancelled</button>
-      </div>
+  <!-- STATUS DROPDOWN -->
+  <div id="modal-status" class="status-dropdown-menu" hidden>
+    <div class="status-options" id="status-options">
+      <button class="status-opt status-opt--green" data-status="Show" id="status-show">Arrived</button>
+      <button class="status-opt status-opt--blue" data-status="Confirmed" id="status-confirmed">Confirmed</button>
+      <button class="status-opt status-opt--amber" data-status="Tentative Appt" id="status-tentative">Scheduled</button>
+      <button class="status-opt status-opt--red" data-status="No Show" id="status-noshow">Did Not Arrive</button>
+      <button class="status-opt status-opt--grey" data-status="Appt Cancel/Postpone" id="status-cancel">Cancelled</button>
     </div>
   </div>
 
@@ -453,6 +448,42 @@
         <button type="button" class="view-secondary-btn" id="dismiss-appt-view">Close</button>
         <button type="button" class="view-primary-btn" id="view-update-status">Update Status</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       CANCELLATION CONFIRM MODAL
+  ════════════════════════════════════════════════ -->
+  <div id="modal-cancel-confirm" class="modal-overlay" hidden aria-modal="true" role="dialog">
+    <div class="bottom-sheet bottom-sheet--sm">
+      <div class="sheet-handle"></div>
+      <h2 class="sheet-title">Confirm Cancellation</h2>
+      <form class="sheet-form" id="form-cancel-appt">
+        <div class="form-group">
+          <label class="form-label">Reason for cancellation</label>
+          <textarea id="cancel-reason" class="form-input" rows="3" placeholder="Please provide the reason to the patient..." required></textarea>
+        </div>
+        <div class="quick-reasons" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: -8px;">
+          <button type="button" class="btn-chip" data-reason="Doctor unavailable">Doctor unavailable</button>
+          <button type="button" class="btn-chip" data-reason="Clinic closed">Clinic closed</button>
+          <button type="button" class="btn-chip" data-reason="Emergency">Emergency</button>
+        </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">Suggest a new timeslot (optional)</label>
+          <div class="suggest-slot-container" style="display: flex; gap: 8px; align-items: center;">
+            <button type="button" id="btn-fetch-slots" class="btn-secondary" style="padding: 8px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">+</button>
+            <span id="suggested-slot-display" style="font-size: 14px; color: var(--text-secondary);">No slot selected</span>
+            <input type="hidden" id="suggested-slot-value" value="">
+          </div>
+          <div id="available-slots-dropdown" hidden style="margin-top: 8px; max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px; background: var(--bg);">
+            <!-- Slots populated dynamically -->
+          </div>
+        </div>
+        <div class="add-appt-actions" style="margin-top: 16px;">
+          <button type="button" class="btn-secondary" id="cancel-cancel-appt">Back</button>
+          <button type="submit" class="btn-primary is-danger" id="btn-confirm-cancel" style="background: #e53935;">Confirm Cancellation</button>
+        </div>
+      </form>
     </div>
   </div>
 

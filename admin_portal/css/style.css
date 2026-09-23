@@ -789,6 +789,11 @@ button {
   color: var(--status-tentative-text);
 }
 
+.badge-confirmed {
+  background: rgba(33, 150, 243, 0.1);
+  color: #1976D2;
+}
+
 .badge-cancel {
   background: var(--status-cancel-bg);
   color: var(--status-cancel-text);
@@ -1187,6 +1192,11 @@ button {
 .status-opt--green {
   background: var(--status-show-bg);
   color: var(--status-show-text);
+}
+
+.status-opt--blue {
+  background: rgba(33, 150, 243, 0.1);
+  color: #1976D2;
 }
 
 .status-opt--amber {
@@ -7021,4 +7031,47 @@ body,
     font-size: 11px;
     padding: 4px 10px;
   }
+}
+
+.status-dropdown-menu {
+  position: absolute;
+  z-index: 9999;
+  background: var(--card);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  border: 1px solid var(--border);
+  padding: 6px;
+  min-width: 140px;
+}
+
+.status-dropdown-menu .status-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status-dropdown-menu .status-opt {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.btn-chip {
+  padding: 6px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--trans-fast);
+}
+
+.btn-chip:hover {
+  background: var(--border);
+}
+
+.btn-chip.active {
+  background: var(--cmd-blue);
+  color: white;
+  border-color: var(--cmd-blue);
 }

@@ -297,3 +297,42 @@ async def send_whatsapp_message(to: str, text: str) -> None:
         else:
             print(f"[Meta API] Message sent OK to {to}")
 
+
+async def send_whatsapp_template(to: str, template_name: str, params: list[str]) -> None:
+    """
+    POST a template message to Meta Graph API.
+    params: list of string parameters to insert into the template placeholders.
+    """
+    token = os.getenv("META_ACCESS_TOKEN")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type":  "application/json",
+    }
+    
+    parameters = [{"type": "text", "text": str(p)} for p in params]
+    
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {
+                "code": "en"
+            },
+            "components": [
+                {
+                    "type": "body",
+                    "parameters": parameters
+                }
+            ]
+        }
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(_get_graph_url(), headers=headers, json=payload)
+        if resp.status_code != 200:
+            print(f"[Meta API] Template Send error {resp.status_code}: {resp.text}")
+            raise Exception(f"WhatsApp Template Error: {resp.text}")
+        else:
+            print(f"[Meta API] Template '{template_name}' sent OK to {to}")
+

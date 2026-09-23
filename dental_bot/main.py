@@ -8,11 +8,12 @@ from fastapi import FastAPI, Request, WebSocket, BackgroundTasks, HTTPException
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 from dotenv import load_dotenv
 load_dotenv()
 
 from reminders import reminder_loop
-from whatsapp_handler import verify_webhook, whatsapp_webhook
+from whatsapp_handler import verify_webhook, whatsapp_webhook, send_whatsapp_message, send_whatsapp_template
 import gcal
 
 # Optional voice handler (gracefully disabled in messaging-only mode)
@@ -198,6 +199,108 @@ async def admin_delete_appointment(appt_id: str, request: Request):
     if not res.data:
         raise HTTPException(status_code=404, detail="Appointment not found.")
     appt = res.data[0]
+
+class CancelAppointmentRequest(BaseModel):
+    reason: str
+    suggested_slot: Optional[str] = None
+
+@app.get("/api/admin/slots")
+async def admin_get_slots(date: str, doctor_id: Optional[str] = None, request: Request = None):
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    if not token: raise HTTPException(status_code=401, detail="No token.")
+    try: pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM], audience="authenticated")
+    except: raise HTTPException(status_code=401, detail="Invalid token.")
+
+    slots = gcal.get_open_slots(days_ahead=30)
+    filtered = [s for s in slots if s.startswith(date)]
+    return {"slots": filtered}
+
+@app.post("/api/admin/appointments/{appt_id}/confirm")
+async def admin_confirm_appointment(appt_id: str, request: Request):
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    if not token: raise HTTPException(status_code=401, detail="No token.")
+    try: pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM], audience="authenticated")
+    except: raise HTTPException(status_code=401, detail="Invalid token.")
+
+    sb = get_supabase()
+    res = sb.table("appointments").select("*").eq("id", appt_id).execute()
+    if not res.data: raise HTTPException(status_code=404, detail="Appointment not found.")
+    appt = res.data[0]
+
+    # Update status
+    sb.table("appointments").update({"status": "Confirmed"}).eq("id", appt_id).execute()
+
+    # WhatsApp message
+    try:
+        doctor_name = "Mustafa" if "mustafa" in str(appt.get("doctor_id")).lower() else "the doctor" # simplification
+        await send_whatsapp_template(
+            appt["contact_number"], 
+            "appointment_confirmed", 
+            [appt["patient_name"], doctor_name, appt["appointment_date"]]
+        )
+    except Exception as e:
+        print(f"Template failed: {e}. Falling back to normal message.")
+        try:
+            msg = f"Hi {appt['patient_name']}, your appointment with {doctor_name} on {appt['appointment_date']} has been confirmed. We look forward to seeing you!"
+            await send_whatsapp_message(appt["contact_number"], msg)
+        except Exception as fallback_err:
+            print(f"Fallback failed: {fallback_err}")
+
+    return {"status": "success"}
+
+@app.post("/api/admin/appointments/{appt_id}/cancel")
+async def admin_cancel_appointment(appt_id: str, body: CancelAppointmentRequest, request: Request):
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    if not token: raise HTTPException(status_code=401, detail="No token.")
+    try: pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM], audience="authenticated")
+    except: raise HTTPException(status_code=401, detail="Invalid token.")
+
+    sb = get_supabase()
+    res = sb.table("appointments").select("*").eq("id", appt_id).execute()
+    if not res.data: raise HTTPException(status_code=404, detail="Appointment not found.")
+    appt = res.data[0]
+
+    # 1. Delete from GCal
+    if appt.get("appointment_time"):
+        try:
+            gcal.cancel_booking(appt["contact_number"], appt["appointment_date"], appt["appointment_time"])
+        except Exception as e:
+            print(f"Error deleting from GCal: {e}")
+
+    # 2. Update Supabase
+    sb.table("appointments").update({"status": "Appt Cancel/Postpone"}).eq("id", appt_id).execute()
+
+    # 3. Send WhatsApp
+    try:
+        if body.suggested_slot:
+            slot_time = datetime.fromisoformat(body.suggested_slot).strftime("%Y-%m-%d %I:%M %p")
+            await send_whatsapp_template(
+                appt["contact_number"], 
+                "appointment_cancelled_reason", 
+                [appt["patient_name"], appt["appointment_date"], body.reason, slot_time]
+            )
+        else:
+            # Different template if no slot? Meta allows omitting optional params if we designed it that way, but let's assume same for now or just generic string
+            await send_whatsapp_template(
+                appt["contact_number"], 
+                "appointment_cancelled_reason", 
+                [appt["patient_name"], appt["appointment_date"], body.reason, "No slots suggested"]
+            )
+    except Exception as e:
+        print(f"Template failed: {e}. Falling back to normal message.")
+        try:
+            msg = f"Hi {appt['patient_name']}, unfortunately your appointment on {appt['appointment_date']} has been cancelled by the clinic.\nReason: {body.reason}"
+            if body.suggested_slot:
+                slot_time = datetime.fromisoformat(body.suggested_slot).strftime("%Y-%m-%d %I:%M %p")
+                msg += f"\n\nWe have an available slot on {slot_time}. Would you like to reschedule to this time? Reply YES to confirm."
+            await send_whatsapp_message(appt["contact_number"], msg)
+        except Exception as fallback_err:
+            print(f"Fallback failed: {fallback_err}")
+
+    return {"status": "success"}
 
     phone = appt.get("contact_number")
     a_date = appt.get("appointment_date") or (appt.get("slot_time", "")[:10] if appt.get("slot_time") else "")
