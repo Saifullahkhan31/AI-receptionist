@@ -6,7 +6,7 @@
 const Router = (() => {
   'use strict';
 
-  const VIEWS = ['today', 'patients', 'settings', 'schedule'];
+  const VIEWS = ['today', 'inbox', 'patients', 'settings', 'schedule'];
   let currentView = 'today';
 
   function switchView(viewName) {

@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from reminders import reminder_loop
-from whatsapp_handler import verify_webhook, whatsapp_webhook, send_whatsapp_message, send_whatsapp_template
+from whatsapp_handler import verify_webhook, whatsapp_webhook, send_whatsapp_message, send_whatsapp_template, log_message
 import gcal
 
 # Optional voice handler (gracefully disabled in messaging-only mode)
@@ -315,3 +315,88 @@ async def admin_cancel_appointment(appt_id: str, body: CancelAppointmentRequest,
     sb.table("appointments").delete().eq("id", appt_id).execute()
 
     return JSONResponse({"status": "success", "message": "Appointment deleted."})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Inbox: get all conversations (grouped by phone number)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/admin/inbox")
+async def admin_get_inbox(request: Request):
+    """Return list of conversations grouped by phone number (most recent first)."""
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="No token.")
+    try:
+        pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM], audience="authenticated")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token.")
+
+    sb = get_supabase()
+    # Fetch last 500 messages ordered newest first, then group by phone in Python
+    res = sb.table("messages").select("*").order("created_at", desc=True).limit(500).execute()
+    rows = res.data or []
+
+    # Group into conversations keyed by phone_number
+    conversations: dict = {}
+    for row in rows:
+        phone = row["phone_number"]
+        if phone not in conversations:
+            conversations[phone] = {
+                "phone_number": phone,
+                "patient_name": row.get("patient_name") or "Unknown",
+                "last_message": row["content"],
+                "last_direction": row["direction"],
+                "last_at": row["created_at"],
+                "unread": 0,
+            }
+
+    return {"conversations": list(conversations.values())}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Inbox: get messages for a specific phone number
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/admin/inbox/{phone_number}")
+async def admin_get_conversation(phone_number: str, request: Request):
+    """Return full message history for a phone number."""
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="No token.")
+    try:
+        pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM], audience="authenticated")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token.")
+
+    sb = get_supabase()
+    res = sb.table("messages").select("*").eq("phone_number", phone_number).order("created_at", desc=False).execute()
+    return {"messages": res.data or []}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Inbox: Doctor manually sends a message from the dashboard
+# ─────────────────────────────────────────────────────────────────────────────
+
+class SendMessageRequest(BaseModel):
+    phone_number: str
+    message: str
+    patient_name: Optional[str] = None
+
+@app.post("/api/admin/messages/send")
+async def admin_send_message(body: SendMessageRequest, request: Request):
+    """Send a WhatsApp message from the doctor's dashboard and log it."""
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="No token.")
+    try:
+        pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM], audience="authenticated")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token.")
+
+    await send_whatsapp_message(body.phone_number, body.message)
+    log_message(body.phone_number, body.patient_name, "outbound", body.message)
+    return {"status": "sent"}

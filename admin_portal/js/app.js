@@ -89,6 +89,7 @@ function initApp(doctor) {
   TodayView.init(doctor);
   PatientsView.init();
   SettingsView.init(doctor);
+  if (typeof InboxView !== 'undefined') InboxView.init(doctor);
 
   // ── Show FAB only on Today ─────────────────────
   const fab = document.getElementById('fab-add');
@@ -104,13 +105,15 @@ function initApp(doctor) {
     const title = document.querySelector('.top-bar-title');
     const date = document.getElementById('top-bar-date');
     const mobileDate = document.getElementById('top-bar-date-mobile');
-    if (title) title.textContent = v === 'patients' ? 'Patients' : v === 'settings' ? 'Settings' : "Today's Appointments";
-    if (date) date.textContent = v === 'patients' ? 'Patient records & history' : v === 'settings' ? 'Clinic configuration' : dateStr;
+    if (title) title.textContent = v === 'patients' ? 'Patients' : v === 'settings' ? 'Settings' : v === 'inbox' ? 'Inbox' : "Today's Appointments";
+    if (date) date.textContent = v === 'patients' ? 'Patient records & history' : v === 'settings' ? 'Clinic configuration' : v === 'inbox' ? 'WhatsApp conversations' : dateStr;
     if (mobileDate) mobileDate.textContent = v === 'patients'
       ? 'Patient records & history'
       : v === 'settings'
         ? 'Clinic configuration'
-        : now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+        : v === 'inbox'
+          ? 'WhatsApp conversations'
+          : now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   });
 
   // ── Setup Supabase Realtime ────────────────────
@@ -131,6 +134,17 @@ function initApp(doctor) {
       .subscribe((status, err) => {
         console.log('[Realtime] Subscription status:', status, err || '');
       });
+    // Realtime for messages (inbox)
+    sbClient.channel('messages-live')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          console.log('[Realtime] New message:', payload);
+          window.dispatchEvent(new CustomEvent('inbox-message', { detail: payload.new }));
+        }
+      )
+      .subscribe();
   } else {
     console.warn('[Realtime] Supabase JS not loaded — realtime disabled.');
   }

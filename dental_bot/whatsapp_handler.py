@@ -3,6 +3,20 @@ import asyncio
 import httpx
 from fastapi import Request, Response, BackgroundTasks
 from agent import handle_message, get_active_gemini_models, mark_model_failed
+from database import supabase
+
+
+def log_message(phone_number: str, patient_name: str | None, direction: str, content: str) -> None:
+    """Silently log a WhatsApp message to the messages table. Never raises."""
+    try:
+        supabase.table("messages").insert({
+            "phone_number": phone_number,
+            "patient_name": patient_name or "Unknown",
+            "direction": direction,
+            "content": content,
+        }).execute()
+    except Exception as e:
+        print(f"[MessageLog] Failed to log {direction} message for {phone_number}: {e}")
 
 # NOTE: META_ACCESS_TOKEN is read fresh on every request so .env changes
 # are picked up without restarting the server.
@@ -149,10 +163,14 @@ async def _process_debounced_messages(sender_phone: str):
         lock = get_phone_lock(sender_phone)
         async with lock:
             print(f"[WhatsApp] IN (debounced) {sender_phone}: {combined_text}")
+            # Log inbound message
+            log_message(sender_phone, sender_name, "inbound", combined_text)
             reply_text = await asyncio.to_thread(handle_message, sender_phone, combined_text, sender_name)
             if reply_text:
                 await send_whatsapp_message(sender_phone, reply_text)
                 print(f"[WhatsApp] OUT {sender_phone}: {reply_text}")
+                # Log outbound reply
+                log_message(sender_phone, sender_name, "outbound", reply_text)
 
     except asyncio.CancelledError:
         # Newer message arrived from this sender; cancelled to reset debounce timer

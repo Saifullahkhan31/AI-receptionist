@@ -281,7 +281,8 @@ const ScheduleView = (() => {
           <div><strong>Doctor:</strong> ${escape(docName)}</div>
           ${appt.notes ? `<div style="grid-column: 1 / -1;"><strong>Notes:</strong> ${escape(appt.notes)}</div>` : ''}
         </div>
-        <div class="detail-actions" style="display: flex; gap: 8px; justify-content: flex-end;">
+        <div class="detail-actions" style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+          ${appt.contact_number ? `<button class="btn-detail" data-chat-appt="${escape(appt.id)}" data-chat-phone="${escape(appt.contact_number)}" data-chat-name="${escape(appt.patient_name)}" style="background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32;">💬 Chat</button>` : ''}
           <button class="btn-detail" data-view-appt="${escape(appt.id)}" style="background: white; border: 1px solid #d1d5db; color: #374151;">View Full Details</button>
           <button class="btn-detail" data-delete-appt="${escape(appt.id)}" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626;">Delete</button>
         </div>
@@ -373,6 +374,11 @@ const ScheduleView = (() => {
       if (appt && typeof TodayView !== 'undefined' && TodayView.openAppointmentView) {
         TodayView.openAppointmentView(appt);
       }
+    }
+
+    const chatBtn = e.target.closest('[data-chat-appt]');
+    if (chatBtn && typeof InboxView !== 'undefined') {
+      InboxView.jumpToConversation(chatBtn.dataset.chatPhone, chatBtn.dataset.chatName);
     }
   });
 

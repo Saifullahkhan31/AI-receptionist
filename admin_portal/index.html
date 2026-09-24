@@ -117,6 +117,13 @@
         </svg>
         <span class="nav-label">Today</span>
       </button>
+      <button class="nav-btn" data-view="inbox" id="nav-inbox" aria-label="Inbox">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 3h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/>
+          <polyline points="1,4 10,11 19,4"/>
+        </svg>
+        <span class="nav-label">Inbox</span>
+      </button>
       <button class="nav-btn" data-view="patients" id="nav-patients" aria-label="Patients">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"
           stroke-linecap="round">
@@ -311,6 +318,53 @@
             </section>
           </div>
           <button class="patients-mobile-add" id="patients-mobile-add"><svg class="patients-action-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="6" r="3"/><path d="M2.5 16c0-3 2.5-5 5.5-5 1.4 0 2.7.5 3.7 1.2"/><path d="M15 11v6M12 14h6"/></svg> Add Patient</button>
+        </section>
+
+        <!-- INBOX VIEW -->
+        <section id="view-inbox" class="app-view" hidden>
+          <div class="inbox-layout">
+            <!-- Left: Conversation List -->
+            <aside class="inbox-sidebar" id="inbox-sidebar">
+              <div class="inbox-sidebar-header">
+                <h2>Inbox</h2>
+                <span class="inbox-count" id="inbox-count">0</span>
+              </div>
+              <div class="inbox-search-box">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7.5"/><path d="m16.5 16.5 4 4"/></svg>
+                <input type="text" id="inbox-search" placeholder="Search conversations..." autocomplete="off">
+              </div>
+              <div class="inbox-conversation-list" id="inbox-conversation-list">
+                <!-- Populated by inbox.js -->
+              </div>
+            </aside>
+            <!-- Right: Chat Window -->
+            <section class="inbox-chat" id="inbox-chat">
+              <div class="inbox-chat-empty" id="inbox-chat-empty">
+                <div style="font-size: 40px;">💬</div>
+                <strong>Select a conversation</strong>
+                <span>Choose a patient from the list to view chat history</span>
+              </div>
+              <div class="inbox-chat-active" id="inbox-chat-active" hidden>
+                <div class="inbox-chat-header" id="inbox-chat-header">
+                  <div class="inbox-chat-avatar" id="inbox-chat-avatar">AB</div>
+                  <div>
+                    <strong id="inbox-chat-name">Patient Name</strong>
+                    <span id="inbox-chat-phone">+92 300 0000000</span>
+                  </div>
+                </div>
+                <div class="inbox-messages" id="inbox-messages"></div>
+                <div class="inbox-composer">
+                  <textarea id="inbox-input" placeholder="Type a message..." rows="1"></textarea>
+                  <button id="inbox-send-btn" aria-label="Send">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"/>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
         </section>
 
         <!-- SCHEDULE VIEW -->
@@ -583,6 +637,7 @@
   <script src="js/views/patients.js?v=4"></script>
   <script src="js/views/settings.js?v=4"></script>
   <script src="js/views/schedule.js?v=4"></script>
+  <script src="js/views/inbox.js?v=1"></script>
   <script src="js/app.js?v=4"></script>
 
 </body>
