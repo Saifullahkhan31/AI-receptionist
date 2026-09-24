@@ -9,8 +9,8 @@ const InboxView = (() => {
   'use strict';
 
   let doctor = null;
-  let conversations = [];       // [{phone_number, patient_name, last_message, last_at}]
-  let activePhone = null;       // currently open conversation phone number
+  let conversations = [];
+  let activePhone = null;
   let activePatientName = null;
   let initialized = false;
 
@@ -26,6 +26,7 @@ const InboxView = (() => {
   const chatNameEl  = () => document.getElementById('inbox-chat-name');
   const chatPhoneEl = () => document.getElementById('inbox-chat-phone');
   const chatAvatar  = () => document.getElementById('inbox-chat-avatar');
+  const layoutEl    = () => document.getElementById('inbox-layout');
 
   // ── Helpers ──────────────────────────────────
   function formatTime(iso) {
@@ -100,7 +101,13 @@ const InboxView = (() => {
         )
       : conversations;
 
-    if (countEl()) countEl().textContent = conversations.length;
+    // Count is always total conversations, badge shown only if > 0
+    const total = conversations.length;
+    const cEl = countEl();
+    if (cEl) {
+      cEl.textContent = total;
+      cEl.style.display = total > 0 ? '' : 'none';
+    }
 
     if (filtered.length === 0) {
       el.innerHTML = `<div class="inbox-empty-list"><span>No conversations yet</span></div>`;
@@ -129,7 +136,7 @@ const InboxView = (() => {
     });
   }
 
-  // ── Render messages bubble ────────────────────
+  // ── Render messages bubbles ───────────────────
   function renderMessages(messages) {
     const el = messagesEl();
     if (!el) return;
@@ -148,7 +155,6 @@ const InboxView = (() => {
       </div>
     `).join('');
 
-    // Scroll to bottom
     el.scrollTop = el.scrollHeight;
   }
 
@@ -161,22 +167,58 @@ const InboxView = (() => {
       .replace(/\n/g, '<br>');
   }
 
+  // FIX 1: Mobile — add chat-open class to layout so CSS can swap panes
+  function setChatOpen(open) {
+    const layout = layoutEl();
+    if (layout) layout.classList.toggle('chat-open', open);
+  }
+
+  // FIX 2: Close chat (mobile back button)
+  function closeChat() {
+    activePhone = null;
+    activePatientName = null;
+    setChatOpen(false);
+    if (emptyEl()) emptyEl().hidden = false;
+    if (activeEl()) activeEl().hidden = true;
+    renderList(searchEl()?.value || '');
+  }
+
+  // FIX 2: Refresh chat
+  async function refreshChat() {
+    if (!activePhone) return;
+    const refreshBtn = document.getElementById('inbox-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.classList.add('spinning');
+      setTimeout(() => refreshBtn.classList.remove('spinning'), 600);
+    }
+    if (messagesEl()) messagesEl().innerHTML = '<div class="inbox-loading">Loading messages…</div>';
+    try {
+      const msgs = await fetchMessages(activePhone);
+      renderMessages(msgs);
+    } catch (err) {
+      if (messagesEl()) messagesEl().innerHTML = '<div class="inbox-error">Failed to load messages.</div>';
+    }
+  }
+
   // ── Open a conversation ───────────────────────
   async function openConversation(phone, name) {
     activePhone = phone;
     activePatientName = name;
 
-    // Update UI header
+    // Update header
     if (chatNameEl()) chatNameEl().textContent = name || phone;
     if (chatPhoneEl()) chatPhoneEl().textContent = '+' + phone;
     if (chatAvatar()) chatAvatar().textContent = initials(name);
 
-    // Show chat panel
+    // Show chat panel — and on mobile switch to chat-open mode
     if (emptyEl()) emptyEl().hidden = true;
     if (activeEl()) activeEl().hidden = false;
+    setChatOpen(true); // FIX 1: triggers mobile CSS swap
 
-    // Highlight in list
+    // Highlight item and hide badge (FIX 3: reset count when reading)
     renderList(searchEl()?.value || '');
+    const cEl = countEl();
+    if (cEl) cEl.style.display = 'none'; // hide badge once a chat is opened
 
     // Load messages
     if (messagesEl()) messagesEl().innerHTML = '<div class="inbox-loading">Loading messages…</div>';
@@ -193,7 +235,6 @@ const InboxView = (() => {
   async function load() {
     try {
       conversations = await fetchConversations();
-      // Sort newest first
       conversations.sort((a, b) => new Date(b.last_at) - new Date(a.last_at));
       renderList();
     } catch (err) {
@@ -201,15 +242,13 @@ const InboxView = (() => {
     }
   }
 
-  // ── Public: open a specific phone from another view ──
+  // ── Public: jump from another view ───────────
   function jumpToConversation(phone, name) {
-    // Switch to inbox view first
     Router.switchView('inbox');
-    // Small timeout so the view is visible before we try to open
     setTimeout(() => openConversation(phone, name), 50);
   }
 
-  // ── Send message handler ──────────────────────
+  // ── Send message ──────────────────────────────
   async function handleSend() {
     const el = inputEl();
     const text = (el?.value || '').trim();
@@ -218,20 +257,43 @@ const InboxView = (() => {
     el.value = '';
     el.style.height = 'auto';
 
-    // Optimistic bubble
+    // FIX 4: Add optimistic bubble with a unique id so we can update it
+    const optimisticId = 'opt-' + Date.now();
     const msgs = messagesEl();
     if (msgs) {
+      const placeholder = msgs.querySelector('.inbox-no-messages');
+      if (placeholder) placeholder.remove();
+
       const row = document.createElement('div');
       row.className = 'inbox-bubble-row outbound';
-      row.innerHTML = `<div class="inbox-bubble outbound"><span class="bubble-text">${escapeHtml(text)}</span><span class="bubble-time">Sending…</span></div>`;
+      row.id = optimisticId;
+      row.innerHTML = `<div class="inbox-bubble outbound"><span class="bubble-text">${escapeHtml(text)}</span><span class="bubble-time bubble-sending">Sending…</span></div>`;
       msgs.appendChild(row);
       msgs.scrollTop = msgs.scrollHeight;
     }
 
     try {
       await sendMessage(activePhone, text, activePatientName);
+      // FIX 4: Update "Sending…" to current time on success
+      const sentRow = document.getElementById(optimisticId);
+      if (sentRow) {
+        const timeEl = sentRow.querySelector('.bubble-sending');
+        if (timeEl) {
+          timeEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          timeEl.classList.remove('bubble-sending');
+        }
+      }
     } catch (err) {
       console.error('[Inbox] Send failed:', err);
+      // Mark the bubble as failed
+      const sentRow = document.getElementById(optimisticId);
+      if (sentRow) {
+        const timeEl = sentRow.querySelector('.bubble-sending');
+        if (timeEl) {
+          timeEl.textContent = '✗ Failed';
+          timeEl.style.color = '#ffcccc';
+        }
+      }
       alert('Failed to send message. Check your connection.');
     }
   }
@@ -242,15 +304,20 @@ const InboxView = (() => {
     if (initialized) return;
     initialized = true;
 
+    // FIX 2: Wire Refresh and Close (back) buttons
+    const refreshBtn = document.getElementById('inbox-refresh-btn');
+    const closeBtn = document.getElementById('inbox-close-btn');
+    if (refreshBtn) refreshBtn.addEventListener('click', refreshChat);
+    if (closeBtn) closeBtn.addEventListener('click', closeChat);
+
     // Load when view becomes active
     window.addEventListener('viewchange', e => {
       if (e.detail.view === 'inbox') load();
     });
 
-    // Realtime: new message pushed via Supabase realtime
+    // Realtime: new message
     window.addEventListener('inbox-message', e => {
       const msg = e.detail;
-      // Update conversation list entry
       const existing = conversations.find(c => c.phone_number === msg.phone_number);
       if (existing) {
         existing.last_message = msg.content;
@@ -270,16 +337,20 @@ const InboxView = (() => {
 
       // Append to open chat if it matches
       if (msg.phone_number === activePhone && messagesEl()) {
-        const msgs = messagesEl();
-        // Remove "no messages" placeholder if present
-        const placeholder = msgs.querySelector('.inbox-no-messages');
+        const msgsList = messagesEl();
+        const placeholder = msgsList.querySelector('.inbox-no-messages');
         if (placeholder) placeholder.remove();
 
-        const row = document.createElement('div');
-        row.className = `inbox-bubble-row ${msg.direction}`;
-        row.innerHTML = `<div class="inbox-bubble ${msg.direction}"><span class="bubble-text">${escapeHtml(msg.content)}</span><span class="bubble-time">${formatMsgTime(msg.created_at)}</span></div>`;
-        msgs.appendChild(row);
-        msgs.scrollTop = msgs.scrollHeight;
+        // Don't double-add outbound messages we already added optimistically
+        // (realtime fires after send completes so the optimistic bubble is already there)
+        // Only add inbound, or outbound sent by another session
+        if (msg.direction === 'inbound') {
+          const row = document.createElement('div');
+          row.className = `inbox-bubble-row ${msg.direction}`;
+          row.innerHTML = `<div class="inbox-bubble ${msg.direction}"><span class="bubble-text">${escapeHtml(msg.content)}</span><span class="bubble-time">${formatMsgTime(msg.created_at)}</span></div>`;
+          msgsList.appendChild(row);
+          msgsList.scrollTop = msgsList.scrollHeight;
+        }
       }
     });
 
@@ -291,7 +362,7 @@ const InboxView = (() => {
     const sBtn = sendBtn();
     if (sBtn) sBtn.addEventListener('click', handleSend);
 
-    // Textarea: Enter to send (Shift+Enter for newline), auto-resize
+    // Textarea: Enter to send, Shift+Enter for newline, auto-resize
     const inp = inputEl();
     if (inp) {
       inp.addEventListener('keydown', e => {
