@@ -141,9 +141,9 @@ const API = (() => {
       const backendUrl = CONFIG.RAILWAY_API_URL;
       const token = localStorage.getItem(CONFIG.SESSION_KEY);
       const url = new URL(`${backendUrl}/api/admin/slots`);
-      url.searchParams.append('date', date);
+      if (date) url.searchParams.append('date', String(date).slice(0, 10));
       if (doctorId) url.searchParams.append('doctor_id', doctorId);
-      
+
       const res = await fetch(url.toString(), {
         headers: { 'Authorization': `Bearer ${token}` }
       });

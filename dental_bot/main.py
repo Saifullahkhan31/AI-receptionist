@@ -204,17 +204,98 @@ class CancelAppointmentRequest(BaseModel):
     reason: str
     suggested_slot: Optional[str] = None
 
+def _parse_open_slot(slot_str: str) -> dict:
+    """Turn gcal slot strings into structured objects the admin portal can render."""
+    text = str(slot_str)
+    date = ""
+    time = ""
+    label = text
+    if " at " in text:
+        date_part, rest = text.split(" at ", 1)
+        date = date_part[:10]
+        time = rest[:5]
+        if "(" in rest and ")" in rest:
+            label = rest[rest.index("(") + 1:rest.rindex(")")]
+        elif time:
+            label = time
+    start = f"{date}T{time}:00" if date and time else text
+    return {"start": start, "date": date, "time": time, "label": label, "raw": text}
+
+
+def _slots_from_appointments(sb, doctor_id: Optional[str] = None, days_ahead: int = 14, max_slots: int = 40) -> list[str]:
+    """Fallback availability from clinic hours minus booked Supabase appointments."""
+    tz = gcal.TZ
+    now_local = datetime.now(tz)
+    start_date = now_local.date()
+    end_date = start_date + timedelta(days=days_ahead)
+    query = (
+        sb.table("appointments")
+        .select("id,appointment_date,appointment_time,status,doctor_id")
+        .gte("appointment_date", start_date.isoformat())
+        .lte("appointment_date", end_date.isoformat())
+        .neq("status", "Appt Cancel/Postpone")
+    )
+    if doctor_id:
+        query = query.eq("doctor_id", doctor_id)
+    booked = query.execute().data or []
+    busy = []
+    slot_delta = timedelta(minutes=gcal.SLOT_DURATION_MINUTES)
+    for row in booked:
+        date_str = str(row.get("appointment_date") or "")[:10]
+        time_str = str(row.get("appointment_time") or "")[:8]
+        if not date_str or not time_str:
+            continue
+        try:
+            hour, minute = [int(p) for p in time_str.split(":")[:2]]
+            start = datetime(int(date_str[:4]), int(date_str[5:7]), int(date_str[8:10]), hour, minute, tzinfo=tz)
+            busy.append((start, start + slot_delta))
+        except Exception:
+            continue
+
+    open_slots: list[str] = []
+    for day_offset in range(0, days_ahead + 1):
+        day_local = start_date + timedelta(days=day_offset)
+        if day_local.weekday() == 6:
+            continue
+        clinic_open = datetime(day_local.year, day_local.month, day_local.day, gcal.CLINIC_START_HOUR, 0, tzinfo=tz)
+        clinic_close = datetime(day_local.year, day_local.month, day_local.day, gcal.CLINIC_END_HOUR, 0, tzinfo=tz)
+        cursor = clinic_open
+        while cursor + slot_delta <= clinic_close:
+            slot_start, slot_end = cursor, cursor + slot_delta
+            cursor += slot_delta
+            if slot_start <= now_local:
+                continue
+            if any(max(slot_start, b_start) < min(slot_end, b_end) for b_start, b_end in busy):
+                continue
+            time_12h_start = slot_start.strftime("%I:%M %p").lstrip("0")
+            time_12h_end = slot_end.strftime("%I:%M %p").lstrip("0")
+            open_slots.append(
+                f"{slot_start.strftime('%Y-%m-%d')} at {slot_start.strftime('%H:%M')} ({time_12h_start} – {time_12h_end})"
+            )
+            if len(open_slots) >= max_slots:
+                return open_slots
+    return open_slots
+
+
 @app.get("/api/admin/slots")
-async def admin_get_slots(date: str, doctor_id: Optional[str] = None, request: Request = None):
+async def admin_get_slots(date: Optional[str] = None, doctor_id: Optional[str] = None, request: Request = None):
     auth = request.headers.get("Authorization", "")
     token = auth.removeprefix("Bearer ").strip()
     if not token: raise HTTPException(status_code=401, detail="No token.")
     try: pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM], audience="authenticated")
     except: raise HTTPException(status_code=401, detail="Invalid token.")
 
-    slots = gcal.get_open_slots(days_ahead=30)
-    filtered = [s for s in slots if s.startswith(date)]
-    return {"slots": filtered}
+    slots = gcal.get_open_slots(days_ahead=14, max_slots=40)
+    if not slots:
+        try:
+            slots = _slots_from_appointments(get_supabase(), doctor_id=doctor_id)
+        except Exception as e:
+            print(f"[admin slots] appointment fallback failed: {e}")
+            slots = []
+    date_only = (date or "")[:10]
+    if date_only:
+        slots = [s for s in slots if str(s).startswith(date_only)]
+    return {"slots": [_parse_open_slot(s) for s in slots]}
 
 @app.post("/api/admin/appointments/{appt_id}/confirm")
 async def admin_confirm_appointment(appt_id: str, request: Request):
@@ -273,10 +354,18 @@ async def admin_cancel_appointment(appt_id: str, body: CancelAppointmentRequest,
     # 2. Update Supabase
     sb.table("appointments").update({"status": "Appt Cancel/Postpone"}).eq("id", appt_id).execute()
 
+    def _format_suggested_slot(raw: Optional[str]) -> str:
+        if not raw:
+            return "No slots suggested"
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "")).strftime("%Y-%m-%d %I:%M %p")
+        except Exception:
+            return raw
+
     # 3. Send WhatsApp
     try:
         if body.suggested_slot:
-            slot_time = datetime.fromisoformat(body.suggested_slot).strftime("%Y-%m-%d %I:%M %p")
+            slot_time = _format_suggested_slot(body.suggested_slot)
             await send_whatsapp_template(
                 appt["contact_number"], 
                 "appointment_cancelled_reason", 
@@ -294,7 +383,7 @@ async def admin_cancel_appointment(appt_id: str, body: CancelAppointmentRequest,
         try:
             msg = f"Hi {appt['patient_name']}, unfortunately your appointment on {appt['appointment_date']} has been cancelled by the clinic.\nReason: {body.reason}"
             if body.suggested_slot:
-                slot_time = datetime.fromisoformat(body.suggested_slot).strftime("%Y-%m-%d %I:%M %p")
+                slot_time = _format_suggested_slot(body.suggested_slot)
                 msg += f"\n\nWe have an available slot on {slot_time}. Would you like to reschedule to this time? Reply YES to confirm."
             await send_whatsapp_message(appt["contact_number"], msg)
         except Exception as fallback_err:

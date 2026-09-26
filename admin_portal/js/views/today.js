@@ -468,19 +468,110 @@ const TodayView = (() => {
   const modalCancel = document.getElementById('modal-cancel-confirm');
   const formCancel = document.getElementById('form-cancel-appt');
   const cancelReason = document.getElementById('cancel-reason');
-  const btnFetchSlots = document.getElementById('btn-fetch-slots');
   const suggestedSlotValue = document.getElementById('suggested-slot-value');
   const suggestedSlotDisplay = document.getElementById('suggested-slot-display');
   const availableSlotsDropdown = document.getElementById('available-slots-dropdown');
+  const btnClearSlot = document.getElementById('btn-clear-slot');
   let cancelTargetAppt = null;
+
+  function parseAvailableSlot(slot) {
+    if (slot && typeof slot === 'object') {
+      const date = String(slot.date || (slot.start || '').slice(0, 10));
+      const iso = slot.start || slot.iso || (date && slot.time ? `${date}T${String(slot.time).slice(0, 5)}:00` : '');
+      return {
+        iso,
+        date,
+        label: slot.label || String(slot.time || '').slice(0, 5),
+      };
+    }
+    const text = String(slot || '');
+    const match = text.match(/^(\d{4}-\d{2}-\d{2})\s+at\s+(\d{1,2}:\d{2})(?:\s+\((.+)\))?/);
+    if (match) {
+      const time = match[2].length === 4 ? `0${match[2]}` : match[2];
+      return { iso: `${match[1]}T${time}:00`, date: match[1], label: match[3] || time };
+    }
+    const dateObj = new Date(text);
+    if (!Number.isNaN(dateObj.getTime())) {
+      return {
+        iso: text,
+        date: text.slice(0, 10),
+        label: dateObj.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      };
+    }
+    return { iso: text, date: '', label: text };
+  }
+
+  function formatSlotDate(dateStr) {
+    const parts = String(dateStr).split('-').map(Number);
+    if (parts.length !== 3 || parts.some(Number.isNaN)) return dateStr || 'Upcoming';
+    return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('en-GB', {
+      weekday: 'short', day: 'numeric', month: 'short',
+    });
+  }
+
+  function clearSuggestedSlot() {
+    suggestedSlotValue.value = '';
+    suggestedSlotDisplay.textContent = 'No slot selected';
+    if (btnClearSlot) btnClearSlot.hidden = true;
+    availableSlotsDropdown.querySelectorAll('.cancel-slot-btn.is-selected').forEach(btn => {
+      btn.classList.remove('is-selected');
+    });
+  }
+
+  async function loadCancelSlots(appt) {
+    availableSlotsDropdown.textContent = 'Loading slots…';
+    try {
+      const slots = await API.getAvailableSlots(null, appt.doctor_id);
+      const parsed = (slots || []).map(parseAvailableSlot).filter(s => s.iso);
+      availableSlotsDropdown.innerHTML = '';
+      if (!parsed.length) {
+        availableSlotsDropdown.textContent = 'No upcoming slots available.';
+        return;
+      }
+      const groups = new Map();
+      parsed.forEach(slot => {
+        const key = slot.date || 'upcoming';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(slot);
+      });
+      groups.forEach((daySlots, dateKey) => {
+        const heading = document.createElement('div');
+        heading.className = 'cancel-slot-day';
+        heading.textContent = formatSlotDate(dateKey);
+        availableSlotsDropdown.appendChild(heading);
+        const row = document.createElement('div');
+        row.className = 'cancel-slot-times';
+        daySlots.forEach(slot => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'cancel-slot-btn';
+          btn.textContent = slot.label;
+          btn.addEventListener('click', () => {
+            availableSlotsDropdown.querySelectorAll('.cancel-slot-btn.is-selected').forEach(el => {
+              el.classList.remove('is-selected');
+            });
+            btn.classList.add('is-selected');
+            suggestedSlotValue.value = slot.iso;
+            suggestedSlotDisplay.textContent = `${formatSlotDate(slot.date)} · ${slot.label}`;
+            if (btnClearSlot) btnClearSlot.hidden = false;
+          });
+          row.appendChild(btn);
+        });
+        availableSlotsDropdown.appendChild(row);
+      });
+    } catch (err) {
+      console.error('Failed to fetch slots:', err);
+      availableSlotsDropdown.textContent = 'Failed to fetch slots.';
+    }
+  }
 
   function openCancelModal(appt) {
     cancelTargetAppt = appt;
     cancelReason.value = '';
-    suggestedSlotValue.value = '';
-    suggestedSlotDisplay.textContent = 'No slot selected';
-    availableSlotsDropdown.hidden = true;
+    document.querySelectorAll('#modal-cancel-confirm .btn-chip').forEach(chip => chip.classList.remove('active'));
+    clearSuggestedSlot();
     modalCancel.hidden = false;
+    loadCancelSlots(appt);
   }
 
   function closeCancelModal() {
@@ -492,45 +583,14 @@ const TodayView = (() => {
   modalCancel.addEventListener('click', e => {
     if (e.target === modalCancel) closeCancelModal();
   });
+  if (btnClearSlot) btnClearSlot.addEventListener('click', clearSuggestedSlot);
 
-  document.querySelectorAll('.btn-chip').forEach(chip => {
+  document.querySelectorAll('#modal-cancel-confirm .btn-chip').forEach(chip => {
     chip.addEventListener('click', () => {
+      document.querySelectorAll('#modal-cancel-confirm .btn-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
       cancelReason.value = chip.dataset.reason;
     });
-  });
-
-  btnFetchSlots.addEventListener('click', async () => {
-    if (availableSlotsDropdown.hidden === false) {
-      availableSlotsDropdown.hidden = true;
-      return;
-    }
-    availableSlotsDropdown.innerHTML = 'Loading slots...';
-    availableSlotsDropdown.hidden = false;
-    try {
-      const slots = await API.getAvailableSlots(cancelTargetAppt.appointment_date, cancelTargetAppt.doctor_id);
-      availableSlotsDropdown.innerHTML = '';
-      if (!slots || slots.length === 0) {
-        availableSlotsDropdown.innerHTML = 'No slots available.';
-        return;
-      }
-      slots.forEach(slot => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'status-opt status-opt--amber';
-        btn.style.width = '100%';
-        btn.style.marginBottom = '4px';
-        const dateObj = new Date(slot);
-        btn.textContent = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        btn.addEventListener('click', () => {
-          suggestedSlotValue.value = slot;
-          suggestedSlotDisplay.textContent = btn.textContent;
-          availableSlotsDropdown.hidden = true;
-        });
-        availableSlotsDropdown.appendChild(btn);
-      });
-    } catch (err) {
-      availableSlotsDropdown.innerHTML = 'Failed to fetch slots.';
-    }
   });
 
   formCancel.addEventListener('submit', async e => {

@@ -7585,3 +7585,172 @@ body,
     justify-content: center;
   }
 }
+
+/* Cancellation confirm modal — centered like appointment details / logout. */
+.cancel-confirm-modal {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.cancel-confirm-card {
+  width: min(520px, calc(100vw - 48px));
+  max-height: min(720px, calc(100vh - 48px));
+  overflow-y: auto;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(8, 24, 50, .2);
+  animation: sheet-scale-in 180ms ease;
+}
+
+.cancel-confirm-header {
+  padding: 24px 26px 16px;
+  border-bottom: 1px solid #f0f0f2;
+}
+
+.cancel-confirm-header p {
+  margin: 0 0 5px;
+  color: #6e6e73;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.cancel-confirm-header h2 {
+  margin: 0;
+  color: #1c1c1e;
+  font-size: 21px;
+}
+
+.cancel-confirm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 26px 24px;
+}
+
+.cancel-confirm-form .quick-reasons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: -8px;
+}
+
+.suggest-slot-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#suggested-slot-display {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.cancel-slot-clear {
+  border: 0;
+  background: none;
+  color: #1a73e8;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cancel-slot-list {
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #eef0f3;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  color: #6e6e73;
+  font-size: 13px;
+}
+
+.cancel-slot-day {
+  margin: 10px 0 8px;
+  color: #35587c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.cancel-slot-day:first-child {
+  margin-top: 0;
+}
+
+.cancel-slot-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cancel-slot-btn {
+  border: 1px solid #dbe4ee;
+  background: #fff;
+  color: #1c1c1e;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cancel-slot-btn:hover {
+  border-color: #1a73e8;
+  color: #1a73e8;
+}
+
+.cancel-slot-btn.is-selected {
+  border-color: #1a73e8;
+  background: #1a73e8;
+  color: #fff;
+}
+
+.cancel-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.cancel-confirm-actions .btn-secondary {
+  height: 48px;
+  background: transparent;
+  color: #6e6e73;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cancel-confirm-actions .btn-primary.is-danger {
+  min-width: 200px;
+  height: 48px;
+  margin: 0;
+  border-radius: 12px;
+  background: #e53935;
+  color: #fff;
+  font-size: 15px;
+}
+
+@media (max-width: 899px) {
+  .cancel-confirm-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .cancel-confirm-card {
+    width: 100%;
+    max-height: 90dvh;
+    border-radius: 24px 24px 0 0;
+    animation: sheet-up 300ms cubic-bezier(.32, .72, 0, 1);
+  }
+}

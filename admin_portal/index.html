@@ -523,34 +523,36 @@
   <!-- ═══════════════════════════════════════════════
        CANCELLATION CONFIRM MODAL
   ════════════════════════════════════════════════ -->
-  <div id="modal-cancel-confirm" class="modal-overlay" hidden aria-modal="true" role="dialog">
-    <div class="bottom-sheet bottom-sheet--sm">
-      <div class="sheet-handle"></div>
-      <h2 class="sheet-title">Confirm Cancellation</h2>
-      <form class="sheet-form" id="form-cancel-appt">
+  <div id="modal-cancel-confirm" class="modal-overlay cancel-confirm-modal" hidden aria-modal="true" role="dialog">
+    <div class="cancel-confirm-card">
+      <div class="cancel-confirm-header">
+        <div>
+          <p>Appointment</p>
+          <h2>Confirm Cancellation</h2>
+        </div>
+      </div>
+      <form class="cancel-confirm-form" id="form-cancel-appt">
         <div class="form-group">
           <label class="form-label">Reason for cancellation</label>
           <textarea id="cancel-reason" class="form-input" rows="3" placeholder="Please provide the reason to the patient..." required></textarea>
         </div>
-        <div class="quick-reasons" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: -8px;">
+        <div class="quick-reasons">
           <button type="button" class="btn-chip" data-reason="Doctor unavailable">Doctor unavailable</button>
           <button type="button" class="btn-chip" data-reason="Clinic closed">Clinic closed</button>
           <button type="button" class="btn-chip" data-reason="Emergency">Emergency</button>
         </div>
-        <div class="form-group" style="margin-top: 8px;">
+        <div class="form-group">
           <label class="form-label">Suggest a new timeslot (optional)</label>
-          <div class="suggest-slot-container" style="display: flex; gap: 8px; align-items: center;">
-            <button type="button" id="btn-fetch-slots" class="btn-secondary" style="padding: 8px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">+</button>
-            <span id="suggested-slot-display" style="font-size: 14px; color: var(--text-secondary);">No slot selected</span>
+          <div class="suggest-slot-container">
+            <span id="suggested-slot-display">No slot selected</span>
+            <button type="button" id="btn-clear-slot" class="cancel-slot-clear" hidden>Clear</button>
             <input type="hidden" id="suggested-slot-value" value="">
           </div>
-          <div id="available-slots-dropdown" hidden style="margin-top: 8px; max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px; background: var(--bg);">
-            <!-- Slots populated dynamically -->
-          </div>
+          <div id="available-slots-dropdown" class="cancel-slot-list">Loading slots…</div>
         </div>
-        <div class="add-appt-actions" style="margin-top: 16px;">
+        <div class="cancel-confirm-actions">
           <button type="button" class="btn-secondary" id="cancel-cancel-appt">Back</button>
-          <button type="submit" class="btn-primary is-danger" id="btn-confirm-cancel" style="background: #e53935;">Confirm Cancellation</button>
+          <button type="submit" class="btn-primary is-danger" id="btn-confirm-cancel">Confirm Cancellation</button>
         </div>
       </form>
     </div>
@@ -646,9 +648,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js?v=4"></script>
   <script src="js/auth.js?v=4"></script>
-  <script src="js/api.js?v=4"></script>
+  <script src="js/api.js?v=5"></script>
   <script src="js/router.js?v=4"></script>
-  <script src="js/views/today.js?v=4"></script>
+  <script src="js/views/today.js?v=5"></script>
   <script src="js/views/patients.js?v=4"></script>
   <script src="js/views/settings.js?v=4"></script>
   <script src="js/views/schedule.js?v=4"></script>
