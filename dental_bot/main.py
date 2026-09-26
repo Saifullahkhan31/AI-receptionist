@@ -200,6 +200,20 @@ async def admin_delete_appointment(appt_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Appointment not found.")
     appt = res.data[0]
 
+    phone = appt.get("contact_number")
+    a_date = appt.get("appointment_date") or (appt.get("slot_time", "")[:10] if appt.get("slot_time") else "")
+    a_time_raw = appt.get("appointment_time")
+    a_time = a_time_raw[:5] if a_time_raw else (appt.get("slot_time", "")[11:16] if appt.get("slot_time") else "")
+
+    # Cancel in Google Calendar when the appointment has enough information to locate its event.
+    if phone and a_date and a_time:
+        gcal.cancel_booking(phone=phone, date_str=a_date, time_str=a_time)
+
+    sb.table("appointments").delete().eq("id", appt_id).execute()
+
+    return JSONResponse({"status": "success", "message": "Appointment deleted."})
+
+
 class CancelAppointmentRequest(BaseModel):
     reason: str
     suggested_slot: Optional[str] = None
@@ -390,20 +404,6 @@ async def admin_cancel_appointment(appt_id: str, body: CancelAppointmentRequest,
             print(f"Fallback failed: {fallback_err}")
 
     return {"status": "success"}
-
-    phone = appt.get("contact_number")
-    a_date = appt.get("appointment_date") or (appt.get("slot_time", "")[:10] if appt.get("slot_time") else "")
-    a_time_raw = appt.get("appointment_time")
-    a_time = a_time_raw[:5] if a_time_raw else (appt.get("slot_time", "")[11:16] if appt.get("slot_time") else "")
-
-    # 3. Cancel in Google Calendar
-    if phone and a_date and a_time:
-        gcal.cancel_booking(phone=phone, date_str=a_date, time_str=a_time)
-
-    # 4. Delete from Supabase
-    sb.table("appointments").delete().eq("id", appt_id).execute()
-
-    return JSONResponse({"status": "success", "message": "Appointment deleted."})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
