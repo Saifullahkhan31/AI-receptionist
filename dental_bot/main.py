@@ -376,14 +376,26 @@ async def admin_cancel_appointment(appt_id: str, body: CancelAppointmentRequest,
         except Exception:
             return raw
 
+    suggested_slot_text = _format_suggested_slot(body.suggested_slot)
+    cancellation_message = (
+        f"Hi {appt['patient_name']}, unfortunately your appointment on "
+        f"{appt['appointment_date']} has been cancelled by the clinic.\n"
+        f"Reason: {body.reason}"
+    )
+    if body.suggested_slot:
+        cancellation_message += (
+            f"\n\nWe have an available slot on {suggested_slot_text}. "
+            "Would you like to reschedule to this time? Reply YES to confirm."
+        )
+
     # 3. Send WhatsApp
+    message_sent = False
     try:
         if body.suggested_slot:
-            slot_time = _format_suggested_slot(body.suggested_slot)
             await send_whatsapp_template(
                 appt["contact_number"], 
                 "appointment_cancelled_reason", 
-                [appt["patient_name"], appt["appointment_date"], body.reason, slot_time]
+                [appt["patient_name"], appt["appointment_date"], body.reason, suggested_slot_text]
             )
         else:
             # Different template if no slot? Meta allows omitting optional params if we designed it that way, but let's assume same for now or just generic string
@@ -392,16 +404,22 @@ async def admin_cancel_appointment(appt_id: str, body: CancelAppointmentRequest,
                 "appointment_cancelled_reason", 
                 [appt["patient_name"], appt["appointment_date"], body.reason, "No slots suggested"]
             )
+        message_sent = True
     except Exception as e:
         print(f"Template failed: {e}. Falling back to normal message.")
         try:
-            msg = f"Hi {appt['patient_name']}, unfortunately your appointment on {appt['appointment_date']} has been cancelled by the clinic.\nReason: {body.reason}"
-            if body.suggested_slot:
-                slot_time = _format_suggested_slot(body.suggested_slot)
-                msg += f"\n\nWe have an available slot on {slot_time}. Would you like to reschedule to this time? Reply YES to confirm."
-            await send_whatsapp_message(appt["contact_number"], msg)
+            await send_whatsapp_message(appt["contact_number"], cancellation_message)
+            message_sent = True
         except Exception as fallback_err:
             print(f"Fallback failed: {fallback_err}")
+
+    if message_sent:
+        log_message(
+            appt["contact_number"],
+            appt.get("patient_name"),
+            "outbound",
+            cancellation_message,
+        )
 
     return {"status": "success"}
 

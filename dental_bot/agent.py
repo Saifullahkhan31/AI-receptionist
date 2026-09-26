@@ -335,6 +335,90 @@ def get_patient_upcoming_appointments(phone: str) -> str:
     return "  No active upcoming appointments found on record."
 
 
+def get_pending_reschedule_offer(phone: str) -> dict | None:
+    """Recover the latest dashboard cancellation offer so a YES survives restarts."""
+    try:
+        messages = (
+            supabase.table("messages")
+            .select("direction,content")
+            .eq("phone_number", phone)
+            .order("created_at", desc=True)
+            .limit(50)
+            .execute()
+            .data
+            or []
+        )
+
+        # The newest inbound row is the current reply. The immediately preceding
+        # outbound row must be the offer; older offers must not be reused.
+        current_inbound_seen = False
+        offer_message = None
+        for message in messages:
+            if message.get("direction") == "inbound":
+                if not current_inbound_seen:
+                    current_inbound_seen = True
+                continue
+            if current_inbound_seen and message.get("direction") == "outbound":
+                offer_message = message.get("content") or ""
+                break
+
+        if not offer_message:
+            return None
+
+        slot_match = re.search(
+            r"(?:available\s+slot|slot)\s+on\s+"
+            r"(\d{4}-\d{2}-\d{2})\s*(?:at\s+)?"
+            r"(\d{1,2}:\d{2}\s*[AP]M|\d{2}:\d{2})",
+            offer_message,
+            re.IGNORECASE,
+        )
+        if not slot_match or "reply yes" not in offer_message.lower():
+            return None
+
+        suggested_date = slot_match.group(1)
+        raw_time = slot_match.group(2).strip()
+        if re.search(r"[AP]M", raw_time, re.IGNORECASE):
+            suggested_time = datetime.strptime(raw_time.upper(), "%I:%M %p").strftime("%H:%M")
+        else:
+            suggested_time = raw_time[:5]
+
+        cancelled_date_match = re.search(
+            r"appointment\s+on\s+(\d{4}-\d{2}-\d{2})", offer_message, re.IGNORECASE
+        )
+        cancelled_date = cancelled_date_match.group(1) if cancelled_date_match else None
+
+        cancelled_query = (
+            supabase.table("appointments")
+            .select("*")
+            .eq("contact_number", phone)
+            .eq("status", "Appt Cancel/Postpone")
+            .order("created_at", desc=True)
+            .limit(20)
+        )
+        if cancelled_date:
+            cancelled_query = cancelled_query.eq("appointment_date", cancelled_date)
+        cancelled = cancelled_query.execute().data or []
+        if not cancelled:
+            return None
+
+        appointment = cancelled[0]
+        procedure = (
+            appointment.get("treatment_planned")
+            or appointment.get("procedure")
+            or "Dental Appointment"
+        ).replace(":", "-")
+        doctor = appointment.get("requested_doctor") or "Unspecified"
+        return {
+            "date": suggested_date,
+            "time": suggested_time,
+            "procedure": procedure,
+            "doctor": doctor.replace(":", "-"),
+        }
+    except Exception as e:
+        print(f"[Reschedule Flow] Could not recover pending offer for {phone}: {e}")
+        return None
+
+
 def build_system_prompt(patient: dict | None, busy_periods: list[str], phone: str) -> str:
     current_date_str = get_pkt_now().strftime("%A, %d %B %Y")
     slots_text = "\n".join(busy_periods) if busy_periods else "No existing appointments this week."
@@ -864,6 +948,7 @@ If a patient asks to cancel their appointment:
 If a patient asks to reschedule:
 - Ask them for the new time they want.
 - Once they confirm the new time, just output the BOOK tag for the new time. (The system will automatically cancel the old one). Do NOT output the CANCEL tag yourself when rescheduling.
+- If the clinic has just offered a specific reschedule slot and the patient replies "YES", "OK", or "HAAN", treat that reply as confirmation of the offered slot. Reuse the cancelled appointment's treatment and doctor details; do not ask what the patient means or start a new booking interview.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 30. PATIENT HISTORY
@@ -1357,6 +1442,14 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
         register_patient(phone, patient_name)
         patient = get_patient(phone) # Re-fetch so we have their dictionary properly loaded
 
+    pending_offer = None
+    affirmative_reply = bool(re.fullmatch(
+        r"(?:yes|y|yeah|yep|haan|han|jee|ji|okay|ok|confirm|confirmed)",
+        incoming_message.strip(),
+        re.IGNORECASE,
+    ))
+    if affirmative_reply:
+        pending_offer = get_pending_reschedule_offer(phone)
 
     # Get busy periods from Google Calendar
     busy_periods = gcal.get_busy_periods()
@@ -1368,9 +1461,19 @@ def handle_message(phone: str, incoming_message: str, patient_name: str = "Unkno
     # Append the newest user message
     CONVERSATION_HISTORY[phone].append({"role": "user", "content": incoming_message})
 
-    # Build system prompt and fetch completion
-    system_prompt = build_system_prompt(patient, busy_periods, phone)
-    reply = get_chat_completion(system_prompt, CONVERSATION_HISTORY[phone])
+    if pending_offer:
+        # Do not leave this safety-critical confirmation to probabilistic intent
+        # handling: the offer and original appointment details are persisted.
+        reply = (
+            f"Ji, aap ka appointment {pending_offer['date']} ko "
+            f"{pending_offer['time']} par confirm kar diya hai.\n"
+            f"BOOK:{pending_offer['date']}:{pending_offer['time']}:"
+            f"{pending_offer['procedure']}:{pending_offer['doctor']}"
+        )
+    else:
+        # Build system prompt and fetch completion
+        system_prompt = build_system_prompt(patient, busy_periods, phone)
+        reply = get_chat_completion(system_prompt, CONVERSATION_HISTORY[phone])
 
     # ── Parse and act on BOOK tag ────────────────────────────────────────────
     book_match = re.search(r"\[?BOOK:(\d{4}-\d{2}-\d{2}):(\d{2}:\d{2}):([^:]+):(.+)\]?", reply)
