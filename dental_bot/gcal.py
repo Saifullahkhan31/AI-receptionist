@@ -227,8 +227,56 @@ def get_busy_periods(days_ahead: int = 7) -> list[str]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Public: create a booking event (45-minute duration)
+# Helper: parse date and time strings robustly
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _parse_slot_datetime(date_str: str, time_str: str) -> datetime:
+    """Robustly parse date_str and time_str into a timezone-aware datetime in Asia/Karachi."""
+    d_clean = (date_str or "").strip()
+    t_clean = (time_str or "").strip()
+
+    if "T" in d_clean:
+        try:
+            dt = datetime.fromisoformat(d_clean)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=TZ)
+            return dt.astimezone(TZ)
+        except Exception:
+            pass
+
+    # Extract clean YYYY-MM-DD
+    if len(d_clean) >= 10 and d_clean[4] == '-' and d_clean[7] == '-':
+        d_clean = d_clean[:10]
+
+    # Try standard formats (with seconds, without seconds, 12h, etc.)
+    for fmt in [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d %I:%M %p",
+        "%Y-%m-%d %I:%M%p",
+        "%Y-%m-%d %I %p",
+    ]:
+        try:
+            dt = datetime.strptime(f"{d_clean} {t_clean}", fmt)
+            return dt.replace(tzinfo=TZ)
+        except ValueError:
+            pass
+
+    # Fallback: extract HH:MM manually
+    t_parts = t_clean.split(":")
+    if len(t_parts) >= 2:
+        try:
+            h = int(t_parts[0].strip())
+            m = int(t_parts[1][:2].strip())
+            dt = datetime.strptime(d_clean, "%Y-%m-%d").replace(
+                hour=h, minute=m, second=0, microsecond=0, tzinfo=TZ
+            )
+            return dt
+        except Exception:
+            pass
+
+    raise ValueError(f"Could not parse date '{date_str}' and time '{time_str}'")
+
 
 def create_booking(
     patient_name: str,
@@ -254,9 +302,7 @@ def create_booking(
             else:
                 duration_minutes = 45
 
-        start_local = datetime.strptime(
-            f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
-        ).replace(tzinfo=TZ)
+        start_local = _parse_slot_datetime(date_str, time_str)
         end_local = start_local + timedelta(minutes=duration_minutes)
 
         # EXACT SLOT OVERLAP CHECK
@@ -321,32 +367,43 @@ def create_booking(
 def cancel_booking(phone: str, date_str: str, time_str: str) -> bool:
     """
     Find and delete the Calendar event that starts at the given slot
-    and has the patient's phone in the description.
+    and has the patient's phone in the description or summary.
     Returns True if deleted, False if not found or error.
     """
     try:
+        import re
         service = _get_service()
 
-        start_local = datetime.strptime(
-            f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
-        ).replace(tzinfo=TZ)
-        end_local = start_local + timedelta(minutes=SLOT_DURATION_MINUTES)
+        start_local = _parse_slot_datetime(date_str, time_str)
+        time_min = (start_local - timedelta(minutes=15)).isoformat()
+        time_max = (start_local + timedelta(hours=2)).isoformat()
 
         events_result = service.events().list(
             calendarId=CALENDAR_ID,
-            timeMin=start_local.isoformat(),
-            timeMax=end_local.isoformat(),
+            timeMin=time_min,
+            timeMax=time_max,
             singleEvents=True,
         ).execute()
+
+        clean_target_phone = re.sub(r"\D", "", phone or "")[-10:]
 
         events = events_result.get("items", [])
         for event in events:
             desc = event.get("description", "")
-            if phone in desc:
+            summary = event.get("summary", "")
+            clean_desc_digits = re.sub(r"\D", "", desc)
+
+            matched = False
+            if phone and (phone in desc or phone in summary):
+                matched = True
+            elif clean_target_phone and clean_target_phone in clean_desc_digits:
+                matched = True
+
+            if matched:
                 service.events().delete(
                     calendarId=CALENDAR_ID, eventId=event["id"]
                 ).execute()
-                print(f"[GCal] Event deleted: {event.get('summary')}")
+                print(f"[GCal] Event deleted: {summary}")
                 return True
 
         print(f"[GCal] No matching event found for {phone} at {date_str} {time_str}")
